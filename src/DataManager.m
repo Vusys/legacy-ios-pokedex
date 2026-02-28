@@ -28,7 +28,7 @@
         _pokemonDetailCache = [[NSMutableDictionary alloc] init];
         _moveDetailCache = [[NSMutableDictionary alloc] init];
         _spriteCache = [[NSCache alloc] init];
-        _spriteCache.countLimit = 200;
+        _spriteCache.countLimit = 400;
     }
     return self;
 }
@@ -323,14 +323,35 @@
 #pragma mark - Sprite Cache
 
 - (UIImage *)spriteForPokemonID:(NSInteger)pokemonID {
-    NSNumber *key = @(pokemonID);
+    return [self spriteForPokemonID:pokemonID directory:@"sprites"];
+}
+
+- (UIImage *)artworkForPokemonID:(NSInteger)pokemonID {
+    return [self spriteForPokemonID:pokemonID directory:@"sprites/artwork"];
+}
+
+- (UIImage *)shinySpriteForPokemonID:(NSInteger)pokemonID {
+    return [self spriteForPokemonID:pokemonID directory:@"sprites/shiny"];
+}
+
+- (UIImage *)backSpriteForPokemonID:(NSInteger)pokemonID {
+    return [self spriteForPokemonID:pokemonID directory:@"sprites/back"];
+}
+
+- (UIImage *)femaleSpriteForPokemonID:(NSInteger)pokemonID {
+    return [self spriteForPokemonID:pokemonID directory:@"sprites/female"];
+}
+
+- (UIImage *)spriteForPokemonID:(NSInteger)pokemonID directory:(NSString *)directory {
+    // Use composite cache key: "directory:id"
+    NSString *key = [NSString stringWithFormat:@"%@:%ld", directory, (long)pokemonID];
     UIImage *cached = [_spriteCache objectForKey:key];
     if (cached) return cached;
 
     NSString *filename = [NSString stringWithFormat:@"%ld", (long)pokemonID];
     NSString *path = [[NSBundle mainBundle] pathForResource:filename
                                                     ofType:@"png"
-                                               inDirectory:@"sprites"];
+                                               inDirectory:directory];
     if (!path) return nil;
 
     UIImage *image = [[UIImage alloc] initWithContentsOfFile:path];

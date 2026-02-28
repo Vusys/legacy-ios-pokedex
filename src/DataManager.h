@@ -39,5 +39,9 @@
 
 // Shared sprite cache (avoids repeated disk reads)
 - (UIImage *)spriteForPokemonID:(NSInteger)pokemonID;
+- (UIImage *)artworkForPokemonID:(NSInteger)pokemonID;
+- (UIImage *)shinySpriteForPokemonID:(NSInteger)pokemonID;
+- (UIImage *)backSpriteForPokemonID:(NSInteger)pokemonID;
+- (UIImage *)femaleSpriteForPokemonID:(NSInteger)pokemonID;
 
 @end

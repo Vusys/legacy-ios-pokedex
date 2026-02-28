@@ -6,6 +6,10 @@ IPAD_PROJECT="/var/mobile/Pokedex"
 IPAD_SDK="/var/sdk"
 APP_NAME="Pokedex"
 BUNDLE_ID="com.vusys.pokedex"
+VERSION="1.0"
+
+# Host destination for built IPAs
+DEST_DIR="$(cd "$(dirname "$0")/.." && pwd)/builds"
 
 SSH_CMD="sshpass -p $IPAD_PASS ssh -o StrictHostKeyChecking=no"
 SCP_CMD="sshpass -p $IPAD_PASS scp -o StrictHostKeyChecking=no"

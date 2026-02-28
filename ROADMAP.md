@@ -46,51 +46,22 @@ Restructure the app from a single split view into a tab bar with multiple sectio
 
 ---
 
-## Phase 3: Additional Images
+## Phase 3: Additional Images ✓
 
-PokeAPI provides many sprite variants. These are all available for download.
+**Status: Complete**
 
-### Official Artwork (High Priority)
+### What was built
 
-- **URL pattern**: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/{id}.png`
-- Large, high-quality official Ken Sugimori-style artwork
-- Use as the main image on the detail view (much nicer than the 96x96 sprite)
-- Keep the small sprite for the list view cells
-
-### Shiny Sprites
-
-- **URL pattern**: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/{id}.png`
-- Add a toggle button on the detail view to swap between normal and shiny
-- Same 96x96 size as regular sprites
-
-### Back Sprites
-
-- **URL pattern**: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/{id}.png`
-- Show front + back side by side on the detail header card
-
-### Female Sprites (Where Applicable)
-
-- **URL pattern**: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/female/{id}.png`
-- Only exists for sexually dimorphic Pokémon (Pikachu, Meowstic, etc.)
-- Show a gender toggle on the detail view when available
-
-### Generation-Specific Sprites
-
-Historical sprites from each game generation:
-
-- **Gen I** (Red/Blue, Yellow) — original pixel art, ~56x56
-- **Gen II** (Gold/Silver, Crystal) — animated in Crystal
-- **Gen III** (Ruby/Sapphire, Emerald, FireRed/LeafGreen)
-- **Gen IV** (Diamond/Pearl, HeartGold/SoulSilver, Platinum)
-- **Gen V** (Black/White) — animated sprites available
-
-Could add a "Sprite Gallery" section to the detail view showing the Pokémon's art across generations.
-
-### Data Pipeline Changes
-
-- `fetch.php`: download additional sprite variants to separate cache directories
-- `process.php`: copy them to `src/sprites/artwork/`, `src/sprites/shiny/`, `src/sprites/back/`, etc.
-- Estimated additional storage: ~50MB for artwork, ~5MB for shiny, ~5MB for back sprites
+- **Official artwork** as hero image on detail view — high-res Ken Sugimori-style art displayed at 65% card width (capped at 280px), centered in the header card. Falls back to standard sprite if artwork unavailable.
+- **Shiny sprites** with toggle button — "★ Shiny" button in header card sprite strip, highlighted gold when active, swaps front sprite to shiny variant
+- **Back sprites** — shown alongside front sprite in a 64px sprite strip row below the artwork
+- **Female sprites** with gender toggle — ♂/♀ button shown only for sexually dimorphic Pokémon (101 species), swaps front sprite to female variant; `has_female_sprite` flag in each Pokémon plist
+- **Redesigned header card** — info section (number, name, genus, type badges) above centered artwork, sprite strip with front/back + toggle buttons below
+- **Data pipeline**: `fetch.php` refactored with `download_sprite_variant()` helper to download all variants from cached Pokémon JSON URLs; `process.php` copies to `src/sprites/artwork/`, `shiny/`, `back/`, `female/` subdirectories
+- **Sprite counts**: 1025 artwork, 1025 shiny, 862 back, 101 female
+- **DataManager**: 4 new methods (`artworkForPokemonID:`, `shinySpriteForPokemonID:`, `backSpriteForPokemonID:`, `femaleSpriteForPokemonID:`) using shared `spriteForPokemonID:directory:` helper with composite cache keys; cache limit raised to 400
+- **Modified**: DataManager.h/.m, Pokemon.h/.m, PokemonDetailVC.m, fetch.php, process.php
+- **Not yet implemented**: Generation-specific historical sprites (could be a future addition)
 
 ---
 
@@ -219,7 +190,7 @@ Three additional reference databases to round out the Pokédex.
 |-------|---------|----------|------------|--------|
 | 1 | Tab bar + Moves | ~937 moves | — | **Done** |
 | 2 | Filters + search + perf | Add legendary/mythical flags | — | **Done** |
-| 3 | Additional images | — | Artwork, shiny, back, historical | Medium |
+| 3 | Additional images | — | 1025 artwork, 1025 shiny, 862 back, 101 female | **Done** |
 | 4 | Type chart | — | — | Medium |
 | 5 | Evolution chains | — (data exists) | — | Small |
 | 6 | Abilities + Items | ~300 abilities, ~2000 items | ~2000 item sprites | Large |

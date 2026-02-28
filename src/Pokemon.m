@@ -30,6 +30,7 @@
     p.eggGroups = dict[@"egg_groups"] ?: @[];
     p.evolutionChain = dict[@"evolution_chain"] ?: @[];
     p.moves = dict[@"moves"] ?: @[];
+    p.hasFemaleSprite = [dict[@"has_female_sprite"] boolValue];
     return p;
 }
 

@@ -88,13 +88,61 @@ function fetch_json_cached(string $category, string $key, string $url): ?array {
     return json_decode($data, true);
 }
 
+// ─── Sprite Variant Downloader ──────────────────────────────────────
+
+/**
+ * Download a sprite variant for all Pokemon, using cached pokemon JSON to get URLs.
+ */
+function download_sprite_variant(string $cacheCategory, string $label, int $totalSpecies, callable $urlExtractor): array {
+    echo "--- Downloading {$label} ---\n";
+    $fetched = 0;
+    $skipped = 0;
+    $missing = 0;
+
+    for ($id = 1; $id <= $totalSpecies; $id++) {
+        if (is_cached($cacheCategory, (string)$id, 'png')) {
+            $skipped++;
+        } else {
+            $pokemonJson = read_cache('pokemon', (string)$id);
+            if ($pokemonJson === null) {
+                $missing++;
+                if ($id % 50 === 0 || $id === $totalSpecies) {
+                    echo "  {$label}: {$id}/{$totalSpecies} (fetched: {$fetched}, cached: {$skipped}, missing: {$missing})\n";
+                }
+                continue;
+            }
+            $pokemonData = json_decode($pokemonJson, true);
+            $url = $urlExtractor($pokemonData);
+
+            if ($url === null) {
+                $missing++;
+            } else {
+                $data = fetch_cached($cacheCategory, (string)$id, $url, 'png');
+                if ($data === null) {
+                    echo "  WARN: Failed to download {$label} for #{$id}\n";
+                    $missing++;
+                } else {
+                    $fetched++;
+                }
+            }
+        }
+
+        if ($id % 50 === 0 || $id === $totalSpecies) {
+            echo "  {$label}: {$id}/{$totalSpecies} (fetched: {$fetched}, cached: {$skipped}, missing: {$missing})\n";
+        }
+    }
+    echo "\n";
+    return ['fetched' => $fetched, 'cached' => $skipped, 'missing' => $missing];
+}
+
 // ─── Main ───────────────────────────────────────────────────────────
 
 function main(): void {
     echo "=== PokeAPI Fetcher ===\n\n";
 
     // Ensure cache directories exist
-    foreach (['pokemon', 'species', 'types', 'moves', 'move-damage-class', 'evolution-chains', 'sprites'] as $dir) {
+    foreach (['pokemon', 'species', 'types', 'moves', 'move-damage-class', 'evolution-chains',
+              'sprites', 'sprites-artwork', 'sprites-shiny', 'sprites-back', 'sprites-female'] as $dir) {
         $path = CACHE_DIR . '/' . $dir;
         if (!is_dir($path)) mkdir($path, 0755, true);
     }
@@ -246,43 +294,21 @@ function main(): void {
     }
     echo "\n";
 
-    // Step 6: Download sprites
-    echo "--- Downloading Sprites ---\n";
-    $fetchedSprites = 0;
-    $skippedSprites = 0;
-    $missingSprites = 0;
-    for ($id = 1; $id <= $totalSpecies; $id++) {
-        if (is_cached('sprites', (string)$id, 'png')) {
-            $skippedSprites++;
-        } else {
-            // Read the pokemon cache to get the sprite URL
-            $pokemonJson = read_cache('pokemon', (string)$id);
-            if ($pokemonJson === null) {
-                $missingSprites++;
-                continue;
-            }
-            $pokemonData = json_decode($pokemonJson, true);
-            $spriteUrl = $pokemonData['sprites']['front_default'] ?? null;
+    // Step 8: Download all sprite variants
+    $spriteStats = download_sprite_variant('sprites', 'Front Sprites', $totalSpecies,
+        fn($data) => $data['sprites']['front_default'] ?? null);
 
-            if ($spriteUrl === null) {
-                $missingSprites++;
-                continue;
-            }
+    $artworkStats = download_sprite_variant('sprites-artwork', 'Official Artwork', $totalSpecies,
+        fn($data) => $data['sprites']['other']['official-artwork']['front_default'] ?? null);
 
-            $spriteData = fetch_cached('sprites', (string)$id, $spriteUrl, 'png');
-            if ($spriteData === null) {
-                echo "  WARN: Failed to download sprite for #{$id}\n";
-                $missingSprites++;
-            } else {
-                $fetchedSprites++;
-            }
-        }
+    $shinyStats = download_sprite_variant('sprites-shiny', 'Shiny Sprites', $totalSpecies,
+        fn($data) => $data['sprites']['front_shiny'] ?? null);
 
-        if ($id % 50 === 0 || $id === $totalSpecies) {
-            echo "  Sprites: {$id}/{$totalSpecies} (fetched: {$fetchedSprites}, cached: {$skippedSprites}, missing: {$missingSprites})\n";
-        }
-    }
-    echo "\n";
+    $backStats = download_sprite_variant('sprites-back', 'Back Sprites', $totalSpecies,
+        fn($data) => $data['sprites']['back_default'] ?? null);
+
+    $femaleStats = download_sprite_variant('sprites-female', 'Female Sprites', $totalSpecies,
+        fn($data) => $data['sprites']['front_female'] ?? null);
 
     // Summary
     echo "=== Fetch Complete ===\n";
@@ -291,7 +317,16 @@ function main(): void {
     echo "  Types:     18 entries\n";
     echo "  Moves:     {$totalMoves} entries\n";
     echo "  Chains:    {$totalChains} entries\n";
-    echo "  Sprites:   " . ($fetchedSprites + $skippedSprites) . " downloaded, {$missingSprites} missing\n";
+    $spriteTotal = $spriteStats['fetched'] + $spriteStats['cached'];
+    echo "  Sprites:        {$spriteTotal} downloaded, {$spriteStats['missing']} missing\n";
+    $artworkTotal = $artworkStats['fetched'] + $artworkStats['cached'];
+    echo "  Artwork:        {$artworkTotal} downloaded, {$artworkStats['missing']} missing\n";
+    $shinyTotal = $shinyStats['fetched'] + $shinyStats['cached'];
+    echo "  Shiny:          {$shinyTotal} downloaded, {$shinyStats['missing']} missing\n";
+    $backTotal = $backStats['fetched'] + $backStats['cached'];
+    echo "  Back:           {$backTotal} downloaded, {$backStats['missing']} missing\n";
+    $femaleTotal = $femaleStats['fetched'] + $femaleStats['cached'];
+    echo "  Female:         {$femaleTotal} downloaded, {$femaleStats['missing']} missing\n";
     echo "  Cache dir: " . realpath(CACHE_DIR) . "\n\n";
     echo "Next step: php tools/process.php\n";
 }

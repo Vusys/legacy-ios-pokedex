@@ -12,7 +12,15 @@ else
 fi
 BUILD=$((BUILD + 1))
 echo "$BUILD" > "$BUILDNUM_FILE"
-echo "==> Build #${BUILD}"
+echo "==> Build #${BUILD} (v${VERSION})"
+
+# Update version in Info.plist on device
+echo "==> Setting version ${VERSION} (build ${BUILD}) in Info.plist..."
+$SSH "cd $IPAD_PROJECT && \
+  sed -i'' \
+    -e '/<key>CFBundleShortVersionString<\/key>/{n;s|<string>.*</string>|<string>${VERSION}</string>|}' \
+    -e '/<key>CFBundleVersion<\/key>/{n;s|<string>.*</string>|<string>${VERSION}.${BUILD}</string>|}' \
+    Info.plist"
 
 echo "==> Packaging IPA..."
 $SSH "cd $IPAD_PROJECT && \
@@ -30,4 +38,11 @@ $SSH "cd $IPAD_PROJECT && \
 
 echo "==> Installing..."
 $SSH "ipainstaller -f $IPAD_PROJECT/${APP_NAME}.ipa 2>&1 || true"
-echo "==> Done. Build #${BUILD} installed."
+
+# Copy IPA back to host
+mkdir -p "$DEST_DIR"
+IPA_FILENAME="${APP_NAME}-v${VERSION}-b${BUILD}.ipa"
+echo "==> Copying IPA to ${DEST_DIR}/${IPA_FILENAME}..."
+$SCP_CMD "${IPAD_USER}@${IPAD_HOST}:${IPAD_PROJECT}/${APP_NAME}.ipa" "${DEST_DIR}/${IPA_FILENAME}"
+
+echo "==> Done. Build #${BUILD} (v${VERSION}) installed and saved to builds/"

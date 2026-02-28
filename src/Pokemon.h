@@ -24,6 +24,7 @@
 @property (nonatomic, strong) NSArray *eggGroups;
 @property (nonatomic, strong) NSArray *evolutionChain;
 @property (nonatomic, strong) NSArray *moves;
+@property (nonatomic, assign) BOOL hasFemaleSprite;
 
 + (instancetype)pokemonFromDictionary:(NSDictionary *)dict;
 

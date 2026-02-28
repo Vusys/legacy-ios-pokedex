@@ -19,6 +19,8 @@
 @property (nonatomic, strong) TexturedBackgroundView *backgroundView;
 @property (nonatomic, strong) Pokemon *pokemon;
 @property (nonatomic, assign) CGFloat lastBuiltWidth;
+@property (nonatomic, assign) BOOL showShiny;
+@property (nonatomic, assign) BOOL showFemale;
 @end
 
 @implementation PokemonDetailVC
@@ -209,65 +211,201 @@
 }
 
 - (CGFloat)buildHeaderCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {
-    CGFloat spriteSize = 96;
-    CGFloat cardHeight = MAX(spriteSize + CARD_PADDING * 2, 130);
+    DataManager *dm = [DataManager sharedManager];
+    NSInteger pid = self.pokemon.pokemonID;
+
+    // ── Determine artwork image ──
+    UIImage *artworkImage = [dm artworkForPokemonID:pid];
+    BOOL hasArtwork = (artworkImage != nil);
+    // Scale artwork to 65% of card width, capped
+    CGFloat artworkDisplaySize = hasArtwork ?
+        MIN(floorf(cardWidth * 0.65), 280) : 96;
+
+    // ── Determine front/back sprite images (respecting shiny + gender toggles) ──
+    UIImage *frontImage;
+    UIImage *backImage;
+    if (self.showFemale && self.pokemon.hasFemaleSprite) {
+        frontImage = [dm femaleSpriteForPokemonID:pid];
+    } else if (self.showShiny) {
+        frontImage = [dm shinySpriteForPokemonID:pid];
+    } else {
+        frontImage = [dm spriteForPokemonID:pid];
+    }
+    backImage = [dm backSpriteForPokemonID:pid];
+
+    // If no artwork, fall back to front sprite as hero image
+    if (!hasArtwork) {
+        artworkImage = frontImage;
+    }
+
+    // ── Layout calculations ──
+    CGFloat innerWidth = cardWidth - CARD_PADDING * 2;
+
+    // Info row: number(18) + name(28) + genus(22) + badge(20) + gap(8)
+    CGFloat infoHeight = 96;
+    // Artwork row
+    CGFloat artworkRowHeight = artworkDisplaySize + 8;
+    // Sprite strip row (front/back + toggle buttons)
+    CGFloat spriteStripH = 72;
+
+    CGFloat cardHeight = CARD_PADDING + infoHeight + artworkRowHeight + spriteStripH + CARD_PADDING;
     UIView *card = [self createCardAtY:y width:cardWidth height:cardHeight];
 
-    // Sprite
-    UIImageView *sprite = [[UIImageView alloc] initWithFrame:
-        CGRectMake(CARD_PADDING, CARD_PADDING, spriteSize, spriteSize)];
-    sprite.contentMode = UIViewContentModeScaleAspectFit;
-    sprite.image = [self.pokemon spriteImage];
-    sprite.backgroundColor = [UIColor colorWithWhite:0.96 alpha:1];
-    sprite.layer.cornerRadius = 6;
-    sprite.layer.borderWidth = 0.5;
-    sprite.layer.borderColor = [[UIColor colorWithWhite:0.88 alpha:1] CGColor];
-    [card addSubview:sprite];
+    CGFloat cy = CARD_PADDING;
 
-    CGFloat textX = CARD_PADDING + spriteSize + 14;
-    CGFloat textW = cardWidth - textX - CARD_PADDING;
-
-    // Number
+    // ── Info section (number, name, genus, types) ──
+    // Number + Name on same line
     UILabel *numberLabel = [[UILabel alloc] initWithFrame:
-        CGRectMake(textX, CARD_PADDING, textW, 18)];
+        CGRectMake(CARD_PADDING, cy, innerWidth, 18)];
     numberLabel.text = [self.pokemon formattedID];
     numberLabel.font = [UIFont fontWithName:@"Courier-Bold" size:14];
     if (!numberLabel.font) numberLabel.font = [UIFont boldSystemFontOfSize:14];
     numberLabel.textColor = [UIColor grayColor];
     numberLabel.backgroundColor = [UIColor clearColor];
     [card addSubview:numberLabel];
+    cy += 18;
 
-    // Name
     UILabel *nameLabel = [[UILabel alloc] initWithFrame:
-        CGRectMake(textX, CARD_PADDING + 20, textW, 26)];
+        CGRectMake(CARD_PADDING, cy, innerWidth, 28)];
     nameLabel.text = self.pokemon.name;
-    nameLabel.font = [UIFont boldSystemFontOfSize:22];
+    nameLabel.font = [UIFont boldSystemFontOfSize:24];
     nameLabel.textColor = [UIColor darkTextColor];
     nameLabel.backgroundColor = [UIColor clearColor];
     [card addSubview:nameLabel];
+    cy += 28;
 
-    // Genus
     UILabel *genusLabel = [[UILabel alloc] initWithFrame:
-        CGRectMake(textX, CARD_PADDING + 48, textW, 18)];
+        CGRectMake(CARD_PADDING, cy, innerWidth, 18)];
     genusLabel.text = self.pokemon.genus;
     genusLabel.font = [UIFont italicSystemFontOfSize:13];
     genusLabel.textColor = [UIColor grayColor];
     genusLabel.backgroundColor = [UIColor clearColor];
     [card addSubview:genusLabel];
+    cy += 22;
 
     // Type badges
-    CGFloat badgeX = textX;
-    CGFloat badgeY = CARD_PADDING + 70;
+    CGFloat badgeX = CARD_PADDING;
     for (NSString *type in self.pokemon.types) {
         TypeBadgeView *badge = [[TypeBadgeView alloc] initWithTypeName:type];
-        badge.frame = CGRectMake(badgeX, badgeY,
+        badge.frame = CGRectMake(badgeX, cy,
                                  [TypeBadgeView badgeWidth], [TypeBadgeView badgeHeight]);
         [card addSubview:badge];
         badgeX += [TypeBadgeView badgeWidth] + 6;
     }
+    cy += [TypeBadgeView badgeHeight] + 8;
+
+    // ── Artwork (centered) ──
+    CGFloat artworkX = (cardWidth - artworkDisplaySize) / 2.0;
+    UIImageView *artworkView = [[UIImageView alloc] initWithFrame:
+        CGRectMake(artworkX, cy, artworkDisplaySize, artworkDisplaySize)];
+    artworkView.contentMode = UIViewContentModeScaleAspectFit;
+    artworkView.image = artworkImage;
+    artworkView.backgroundColor = [UIColor colorWithWhite:0.97 alpha:1];
+    artworkView.layer.cornerRadius = 8;
+    artworkView.layer.borderWidth = 0.5;
+    artworkView.layer.borderColor = [[UIColor colorWithWhite:0.88 alpha:1] CGColor];
+    [card addSubview:artworkView];
+    cy += artworkDisplaySize + 8;
+
+    // ── Sprite strip: front + back sprites and toggle buttons ──
+    CGFloat stripY = cy;
+    CGFloat smallSprite = 64;
+
+    // Front sprite
+    CGFloat stripX = CARD_PADDING;
+    CGFloat spriteOffY = stripY + (spriteStripH - smallSprite) / 2.0;
+    UIImageView *frontView = [[UIImageView alloc] initWithFrame:
+        CGRectMake(stripX, spriteOffY, smallSprite, smallSprite)];
+    frontView.contentMode = UIViewContentModeScaleAspectFit;
+    frontView.image = frontImage;
+    frontView.backgroundColor = [UIColor colorWithWhite:0.95 alpha:1];
+    frontView.layer.cornerRadius = 4;
+    frontView.layer.borderWidth = 0.5;
+    frontView.layer.borderColor = [[UIColor colorWithWhite:0.85 alpha:1] CGColor];
+    [card addSubview:frontView];
+    stripX += smallSprite + 6;
+
+    // Back sprite
+    if (backImage) {
+        UIImageView *backView = [[UIImageView alloc] initWithFrame:
+            CGRectMake(stripX, spriteOffY, smallSprite, smallSprite)];
+        backView.contentMode = UIViewContentModeScaleAspectFit;
+        backView.image = backImage;
+        backView.backgroundColor = [UIColor colorWithWhite:0.95 alpha:1];
+        backView.layer.cornerRadius = 4;
+        backView.layer.borderWidth = 0.5;
+        backView.layer.borderColor = [[UIColor colorWithWhite:0.85 alpha:1] CGColor];
+        [card addSubview:backView];
+        stripX += smallSprite + 6;
+    }
+
+    // Toggle buttons (right-aligned, vertically centered in strip)
+    CGFloat btnH = 28;
+    CGFloat btnY = stripY + (spriteStripH - btnH) / 2.0;
+    CGFloat btnRight = cardWidth - CARD_PADDING;
+
+    // Gender toggle (only if female sprite exists)
+    if (self.pokemon.hasFemaleSprite) {
+        NSString *genderTitle = self.showFemale ? @"\u2640" : @"\u2642";
+        UIButton *genderBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+        genderBtn.frame = CGRectMake(btnRight - 36, btnY, 36, btnH);
+        [genderBtn setTitle:genderTitle forState:UIControlStateNormal];
+        [genderBtn setTitleColor:(self.showFemale ?
+            [UIColor colorWithRed:0.95 green:0.3 blue:0.5 alpha:1] :
+            [UIColor colorWithRed:0.2 green:0.4 blue:0.9 alpha:1])
+            forState:UIControlStateNormal];
+        genderBtn.titleLabel.font = [UIFont boldSystemFontOfSize:16];
+        genderBtn.backgroundColor = [UIColor colorWithWhite:0.94 alpha:1];
+        genderBtn.layer.cornerRadius = 4;
+        genderBtn.layer.borderWidth = 0.5;
+        genderBtn.layer.borderColor = [[UIColor colorWithWhite:0.80 alpha:1] CGColor];
+        [genderBtn addTarget:self action:@selector(toggleGender)
+            forControlEvents:UIControlEventTouchUpInside];
+        [card addSubview:genderBtn];
+        btnRight -= 42;
+    }
+
+    // Shiny toggle
+    {
+        UIButton *shinyBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+        shinyBtn.frame = CGRectMake(btnRight - 56, btnY, 56, btnH);
+        [shinyBtn setTitle:@"\u2605 Shiny" forState:UIControlStateNormal];
+        [shinyBtn setTitleColor:(self.showShiny ?
+            [UIColor colorWithRed:0.85 green:0.65 blue:0.0 alpha:1] :
+            [UIColor colorWithWhite:0.45 alpha:1])
+            forState:UIControlStateNormal];
+        shinyBtn.titleLabel.font = [UIFont boldSystemFontOfSize:11];
+        shinyBtn.backgroundColor = self.showShiny ?
+            [UIColor colorWithRed:1.0 green:0.97 blue:0.85 alpha:1] :
+            [UIColor colorWithWhite:0.94 alpha:1];
+        shinyBtn.layer.cornerRadius = 4;
+        shinyBtn.layer.borderWidth = 0.5;
+        shinyBtn.layer.borderColor = (self.showShiny ?
+            [[UIColor colorWithRed:0.85 green:0.65 blue:0.0 alpha:0.5] CGColor] :
+            [[UIColor colorWithWhite:0.80 alpha:1] CGColor]);
+        [shinyBtn addTarget:self action:@selector(toggleShiny)
+            forControlEvents:UIControlEventTouchUpInside];
+        [card addSubview:shinyBtn];
+    }
 
     [self.scrollView addSubview:card];
     return y + cardHeight + CARD_SPACING;
+}
+
+- (void)toggleShiny {
+    self.showShiny = !self.showShiny;
+    self.showFemale = NO;
+    CGPoint offset = self.scrollView.contentOffset;
+    [self rebuildLayout];
+    self.scrollView.contentOffset = offset;
+}
+
+- (void)toggleGender {
+    self.showFemale = !self.showFemale;
+    self.showShiny = NO;
+    CGPoint offset = self.scrollView.contentOffset;
+    [self rebuildLayout];
+    self.scrollView.contentOffset = offset;
 }
 
 - (CGFloat)buildFlavorTextCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {

@@ -23,6 +23,14 @@ define('POKEMON_DIR', DATA_DIR . '/pokemon');
 define('MOVES_DIR', DATA_DIR . '/moves');
 define('SPRITES_SRC', CACHE_DIR . '/sprites');
 define('SPRITES_DST', SRC_DIR . '/sprites');
+define('ARTWORK_SRC', CACHE_DIR . '/sprites-artwork');
+define('ARTWORK_DST', SRC_DIR . '/sprites/artwork');
+define('SHINY_SRC', CACHE_DIR . '/sprites-shiny');
+define('SHINY_DST', SRC_DIR . '/sprites/shiny');
+define('BACK_SRC', CACHE_DIR . '/sprites-back');
+define('BACK_DST', SRC_DIR . '/sprites/back');
+define('FEMALE_SRC', CACHE_DIR . '/sprites-female');
+define('FEMALE_DST', SRC_DIR . '/sprites/female');
 
 // Standard community-agreed Pokemon type colors
 define('TYPE_COLORS', [
@@ -355,6 +363,10 @@ function main(): void {
     if (!is_dir(POKEMON_DIR)) mkdir(POKEMON_DIR, 0755, true);
     if (!is_dir(MOVES_DIR)) mkdir(MOVES_DIR, 0755, true);
     if (!is_dir(SPRITES_DST)) mkdir(SPRITES_DST, 0755, true);
+    if (!is_dir(ARTWORK_DST)) mkdir(ARTWORK_DST, 0755, true);
+    if (!is_dir(SHINY_DST)) mkdir(SHINY_DST, 0755, true);
+    if (!is_dir(BACK_DST)) mkdir(BACK_DST, 0755, true);
+    if (!is_dir(FEMALE_DST)) mkdir(FEMALE_DST, 0755, true);
 
     // Determine how many species we have cached
     $speciesFiles = glob(CACHE_DIR . '/species/*.json');
@@ -513,6 +525,9 @@ function main(): void {
             $eggGroups[] = title_case_name($eg['name'] ?? '');
         }
 
+        // Check for female sprite availability
+        $hasFemaleSprite = file_exists(FEMALE_SRC . "/{$id}.png");
+
         // Build full detail plist data
         $detail = [
             'id' => $id,
@@ -535,6 +550,7 @@ function main(): void {
             'hatch_counter' => $speciesData['hatch_counter'] ?? 0,
             'egg_groups' => $eggGroups,
             'evolution_chain' => $evolutionChain,
+            'has_female_sprite' => $hasFemaleSprite,
             'moves' => $moves,
         ];
 
@@ -599,18 +615,43 @@ function main(): void {
     write_plist(DATA_DIR . '/types.plist', $typesData);
     echo "  Wrote types.plist (" . count($typesData) . " types)\n\n";
 
-    // Copy sprites
+    // Copy sprites (all variants)
     echo "Copying sprites...\n";
-    $copiedSprites = 0;
+    $spriteCounts = ['front' => 0, 'artwork' => 0, 'shiny' => 0, 'back' => 0, 'female' => 0];
     foreach ($speciesIds as $id) {
-        $src = SPRITES_SRC . "/{$id}.png";
-        $dst = SPRITES_DST . "/{$id}.png";
-        if (file_exists($src)) {
-            copy($src, $dst);
-            $copiedSprites++;
+        $filename = "{$id}.png";
+
+        // Front (default)
+        if (file_exists(SPRITES_SRC . "/{$filename}")) {
+            copy(SPRITES_SRC . "/{$filename}", SPRITES_DST . "/{$filename}");
+            $spriteCounts['front']++;
+        }
+        // Official artwork
+        if (file_exists(ARTWORK_SRC . "/{$filename}")) {
+            copy(ARTWORK_SRC . "/{$filename}", ARTWORK_DST . "/{$filename}");
+            $spriteCounts['artwork']++;
+        }
+        // Shiny
+        if (file_exists(SHINY_SRC . "/{$filename}")) {
+            copy(SHINY_SRC . "/{$filename}", SHINY_DST . "/{$filename}");
+            $spriteCounts['shiny']++;
+        }
+        // Back
+        if (file_exists(BACK_SRC . "/{$filename}")) {
+            copy(BACK_SRC . "/{$filename}", BACK_DST . "/{$filename}");
+            $spriteCounts['back']++;
+        }
+        // Female
+        if (file_exists(FEMALE_SRC . "/{$filename}")) {
+            copy(FEMALE_SRC . "/{$filename}", FEMALE_DST . "/{$filename}");
+            $spriteCounts['female']++;
         }
     }
-    echo "  Copied {$copiedSprites} sprites.\n\n";
+    echo "  Front:   {$spriteCounts['front']}\n";
+    echo "  Artwork: {$spriteCounts['artwork']}\n";
+    echo "  Shiny:   {$spriteCounts['shiny']}\n";
+    echo "  Back:    {$spriteCounts['back']}\n";
+    echo "  Female:  {$spriteCounts['female']}\n\n";
 
     // Process moves
     echo "--- Processing Moves ---\n";
@@ -740,7 +781,7 @@ function main(): void {
     echo "  Types:    " . DATA_DIR . "/types.plist (" . count($typesData) . " types)\n";
     echo "  Pokemon:  " . POKEMON_DIR . "/ ({$processed} plists)\n";
     echo "  Moves:    " . MOVES_DIR . "/ ({$processedMoves} plists)\n";
-    echo "  Sprites:  " . SPRITES_DST . "/ ({$copiedSprites} PNGs)\n";
+    echo "  Sprites:  " . SPRITES_DST . "/ (front: {$spriteCounts['front']}, artwork: {$spriteCounts['artwork']}, shiny: {$spriteCounts['shiny']}, back: {$spriteCounts['back']}, female: {$spriteCounts['female']})\n";
 }
 
 main();
