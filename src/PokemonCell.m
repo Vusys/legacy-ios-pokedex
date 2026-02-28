@@ -1,5 +1,6 @@
 #import "PokemonCell.h"
 #import "TypeBadgeView.h"
+#import "DataManager.h"
 #import <QuartzCore/QuartzCore.h>
 
 #define SPRITE_SIZE 48
@@ -62,16 +63,8 @@
     // Name
     self.nameLabel.text = name;
 
-    // Sprite
-    NSString *spriteName = [NSString stringWithFormat:@"%ld", (long)pokemonID];
-    NSString *path = [[NSBundle mainBundle] pathForResource:spriteName
-                                                    ofType:@"png"
-                                               inDirectory:@"sprites"];
-    if (path) {
-        self.spriteView.image = [[UIImage alloc] initWithContentsOfFile:path];
-    } else {
-        self.spriteView.image = nil;
-    }
+    // Sprite (from shared cache)
+    self.spriteView.image = [[DataManager sharedManager] spriteForPokemonID:pokemonID];
 
     // Clear old type badges
     for (UIView *badge in self.typeBadges) {

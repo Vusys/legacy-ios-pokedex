@@ -8,6 +8,7 @@
 @property (nonatomic, strong) NSMutableDictionary *pokemonDetailCache;
 @property (nonatomic, strong) NSMutableDictionary *moveDetailCache;
 @property (nonatomic, strong) NSDictionary *pokemonNameLookup;
+@property (nonatomic, strong) NSCache *spriteCache;
 @end
 
 @implementation DataManager
@@ -26,6 +27,8 @@
     if (self) {
         _pokemonDetailCache = [[NSMutableDictionary alloc] init];
         _moveDetailCache = [[NSMutableDictionary alloc] init];
+        _spriteCache = [[NSCache alloc] init];
+        _spriteCache.countLimit = 200;
     }
     return self;
 }
@@ -34,6 +37,7 @@
 
 - (NSArray *)allPokemonSummaries {
     if (!_pokemonIndex) {
+        CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
         NSString *path = [[NSBundle mainBundle] pathForResource:@"index"
                                                         ofType:@"plist"
                                                    inDirectory:@"data"];
@@ -44,7 +48,8 @@
             NSLog(@"WARNING: Could not load index.plist");
             _pokemonIndex = @[];
         } else {
-            NSLog(@"Loaded %lu Pokemon from index.plist",
+            NSLog(@"[PERF] DataManager loadPokemonIndex: %.1fms (%lu entries)",
+                  (CFAbsoluteTimeGetCurrent() - start) * 1000,
                   (unsigned long)_pokemonIndex.count);
         }
     }
@@ -65,6 +70,7 @@
                         generations:(NSSet *)generations
                          categories:(NSSet *)categories
                              sortBy:(NSString *)sortBy {
+    CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
     NSArray *results = [self allPokemonSummaries];
 
     // Filter by types (OR within group)
@@ -133,6 +139,11 @@
     }
     // Default "number" sort is already in plist order (by id)
 
+    NSLog(@"[PERF] searchPokemon: %.1fms (query=%@, types=%lu, gens=%lu, cats=%lu, sort=%@, results=%lu)",
+          (CFAbsoluteTimeGetCurrent() - start) * 1000,
+          query ?: @"nil", (unsigned long)types.count,
+          (unsigned long)generations.count, (unsigned long)categories.count,
+          sortBy, (unsigned long)results.count);
     return results;
 }
 
@@ -141,8 +152,12 @@
 - (Pokemon *)pokemonDetailWithID:(NSInteger)pokemonID {
     NSNumber *key = @(pokemonID);
     Pokemon *cached = _pokemonDetailCache[key];
-    if (cached) return cached;
+    if (cached) {
+        NSLog(@"[PERF] DataManager pokemonDetail #%ld: cache hit", (long)pokemonID);
+        return cached;
+    }
 
+    CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
     NSString *filename = [NSString stringWithFormat:@"%ld", (long)pokemonID];
     NSString *path = [[NSBundle mainBundle] pathForResource:filename
                                                     ofType:@"plist"
@@ -154,6 +169,8 @@
 
     Pokemon *pokemon = [Pokemon pokemonFromDictionary:dict];
     _pokemonDetailCache[key] = pokemon;
+    NSLog(@"[PERF] DataManager pokemonDetail #%ld: %.1fms (plist load + parse)",
+          (long)pokemonID, (CFAbsoluteTimeGetCurrent() - start) * 1000);
     return pokemon;
 }
 
@@ -161,6 +178,7 @@
 
 - (NSArray *)allMoveSummaries {
     if (!_movesIndex) {
+        CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
         NSString *path = [[NSBundle mainBundle] pathForResource:@"index"
                                                         ofType:@"plist"
                                                    inDirectory:@"data/moves"];
@@ -171,7 +189,8 @@
             NSLog(@"WARNING: Could not load moves/index.plist");
             _movesIndex = @[];
         } else {
-            NSLog(@"Loaded %lu moves from moves/index.plist",
+            NSLog(@"[PERF] DataManager loadMovesIndex: %.1fms (%lu entries)",
+                  (CFAbsoluteTimeGetCurrent() - start) * 1000,
                   (unsigned long)_movesIndex.count);
         }
     }
@@ -192,6 +211,7 @@
                       generations:(NSSet *)generations
                     damageClasses:(NSSet *)damageClasses
                            sortBy:(NSString *)sortBy {
+    CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
     NSArray *results = [self allMoveSummaries];
 
     // Filter by types (OR within group)
@@ -248,6 +268,11 @@
     }
     // Default "number" sort is already in plist order (by id)
 
+    NSLog(@"[PERF] searchMoves: %.1fms (query=%@, types=%lu, gens=%lu, dmgClass=%lu, sort=%@, results=%lu)",
+          (CFAbsoluteTimeGetCurrent() - start) * 1000,
+          query ?: @"nil", (unsigned long)types.count,
+          (unsigned long)generations.count, (unsigned long)damageClasses.count,
+          sortBy, (unsigned long)results.count);
     return results;
 }
 
@@ -256,8 +281,12 @@
 - (Move *)moveDetailWithID:(NSInteger)moveID {
     NSNumber *key = @(moveID);
     Move *cached = _moveDetailCache[key];
-    if (cached) return cached;
+    if (cached) {
+        NSLog(@"[PERF] DataManager moveDetail #%ld: cache hit", (long)moveID);
+        return cached;
+    }
 
+    CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
     NSString *filename = [NSString stringWithFormat:@"%ld", (long)moveID];
     NSString *path = [[NSBundle mainBundle] pathForResource:filename
                                                     ofType:@"plist"
@@ -269,6 +298,8 @@
 
     Move *move = [Move moveFromDictionary:dict];
     _moveDetailCache[key] = move;
+    NSLog(@"[PERF] DataManager moveDetail #%ld: %.1fms (plist load + parse)",
+          (long)moveID, (CFAbsoluteTimeGetCurrent() - start) * 1000);
     return move;
 }
 
@@ -287,6 +318,26 @@
         _pokemonNameLookup = [lookup copy];
     }
     return _pokemonNameLookup[@(pokemonID)] ?: @"???";
+}
+
+#pragma mark - Sprite Cache
+
+- (UIImage *)spriteForPokemonID:(NSInteger)pokemonID {
+    NSNumber *key = @(pokemonID);
+    UIImage *cached = [_spriteCache objectForKey:key];
+    if (cached) return cached;
+
+    NSString *filename = [NSString stringWithFormat:@"%ld", (long)pokemonID];
+    NSString *path = [[NSBundle mainBundle] pathForResource:filename
+                                                    ofType:@"png"
+                                               inDirectory:@"sprites"];
+    if (!path) return nil;
+
+    UIImage *image = [[UIImage alloc] initWithContentsOfFile:path];
+    if (image) {
+        [_spriteCache setObject:image forKey:key];
+    }
+    return image;
 }
 
 @end

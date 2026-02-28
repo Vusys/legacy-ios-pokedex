@@ -1,4 +1,5 @@
 #import "Pokemon.h"
+#import "DataManager.h"
 
 @interface Pokemon ()
 @property (nonatomic, strong) UIImage *cachedSprite;
@@ -34,13 +35,7 @@
 
 - (UIImage *)spriteImage {
     if (!_cachedSprite) {
-        NSString *spriteName = [NSString stringWithFormat:@"%ld", (long)self.pokemonID];
-        NSString *path = [[NSBundle mainBundle] pathForResource:spriteName
-                                                        ofType:@"png"
-                                                   inDirectory:@"sprites"];
-        if (path) {
-            _cachedSprite = [[UIImage alloc] initWithContentsOfFile:path];
-        }
+        _cachedSprite = [[DataManager sharedManager] spriteForPokemonID:self.pokemonID];
     }
     return _cachedSprite;
 }

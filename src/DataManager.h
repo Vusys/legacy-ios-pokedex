@@ -37,4 +37,7 @@
 // Pokemon name lookup (for move detail "learned by" list)
 - (NSString *)pokemonNameForID:(NSInteger)pokemonID;
 
+// Shared sprite cache (avoids repeated disk reads)
+- (UIImage *)spriteForPokemonID:(NSInteger)pokemonID;
+
 @end

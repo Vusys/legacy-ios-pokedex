@@ -45,7 +45,11 @@
 
     // Load data
     if (self.pokemonID > 0) {
+        CFAbsoluteTime loadStart = CFAbsoluteTimeGetCurrent();
         self.pokemon = [[DataManager sharedManager] pokemonDetailWithID:self.pokemonID];
+        NSLog(@"[PERF] PokemonDetailVC loadData: %.1fms (id=%ld, name=%@)",
+              (CFAbsoluteTimeGetCurrent() - loadStart) * 1000,
+              (long)self.pokemonID, self.pokemon.name ?: @"nil");
         self.title = self.pokemon.name ?: @"Pokédex";
     }
 }
@@ -54,7 +58,10 @@
     [super viewDidLayoutSubviews];
     CGFloat w = self.view.bounds.size.width;
     if (w > 0 && w != self.lastBuiltWidth) {
+        CGFloat oldWidth = self.lastBuiltWidth;
         self.lastBuiltWidth = w;
+        NSLog(@"[PERF] PokemonDetailVC viewDidLayoutSubviews: width %.0f -> %.0f (pokemon=%@)",
+              oldWidth, w, self.pokemon.name ?: @"nil");
         [self rebuildLayout];
     }
 }
@@ -115,29 +122,52 @@
     CGFloat cardWidth = contentWidth - (CARD_MARGIN * 2);
     CGFloat y = CARD_SPACING;
 
+    CFAbsoluteTime totalStart = CFAbsoluteTimeGetCurrent();
+    CFAbsoluteTime cardStart;
+
     // ─── Header Card ────────────────────────────────────────
+    cardStart = CFAbsoluteTimeGetCurrent();
     y = [self buildHeaderCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   header: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
 
     // ─── Flavor Text Card ───────────────────────────────────
+    cardStart = CFAbsoluteTimeGetCurrent();
     y = [self buildFlavorTextCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   flavor: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
 
     // ─── Base Stats Card ────────────────────────────────────
+    cardStart = CFAbsoluteTimeGetCurrent();
     y = [self buildStatsCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   stats: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
 
     // ─── Info Card ──────────────────────────────────────────
+    cardStart = CFAbsoluteTimeGetCurrent();
     y = [self buildInfoCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   info: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
 
     // ─── Abilities Card ─────────────────────────────────────
+    cardStart = CFAbsoluteTimeGetCurrent();
     y = [self buildAbilitiesCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   abilities: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
 
     // ─── Breeding Card ──────────────────────────────────────
+    cardStart = CFAbsoluteTimeGetCurrent();
     y = [self buildBreedingCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   breeding: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
 
     // ─── Moves Card ─────────────────────────────────────────
+    cardStart = CFAbsoluteTimeGetCurrent();
     y = [self buildMovesCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   moves: %.1fms (%lu moves)",
+          (CFAbsoluteTimeGetCurrent() - cardStart) * 1000,
+          (unsigned long)self.pokemon.moves.count);
 
     y += CARD_SPACING;
     self.scrollView.contentSize = CGSizeMake(contentWidth, y);
+
+    NSLog(@"[PERF] PokemonDetailVC rebuildLayout TOTAL: %.1fms (pokemon=%@, width=%.0f)",
+          (CFAbsoluteTimeGetCurrent() - totalStart) * 1000,
+          self.pokemon.name ?: @"nil", contentWidth);
 }
 
 #pragma mark - Card Builders
@@ -494,15 +524,23 @@
 
     if (sections.count == 0) return y;
 
-    // Calculate card height
+    // Cap rows per section to limit view creation
+    NSInteger maxPerSection = 10;
     CGFloat moveRowHeight = 22;
+    CGFloat moreRowHeight = 20;
     CGFloat sectionHeaderHeight = 24;
     CGFloat mainHeaderHeight = 26;
     CGFloat colHeaderHeight = 18;
+
+    // Calculate card height with caps
     CGFloat totalHeight = CARD_PADDING + mainHeaderHeight + colHeaderHeight;
     for (NSArray *section in sections) {
         NSArray *moves = section[1];
-        totalHeight += sectionHeaderHeight + (moveRowHeight * moves.count);
+        NSInteger showing = MIN((NSInteger)moves.count, maxPerSection);
+        totalHeight += sectionHeaderHeight + (moveRowHeight * showing);
+        if ((NSInteger)moves.count > maxPerSection) {
+            totalHeight += moreRowHeight;
+        }
     }
     totalHeight += CARD_PADDING;
 
@@ -550,6 +588,7 @@
     for (NSArray *section in sections) {
         NSString *sectionTitle = section[0];
         NSArray *moves = section[1];
+        NSInteger showing = MIN((NSInteger)moves.count, maxPerSection);
 
         // Section sub-header
         UILabel *subHeader = [[UILabel alloc] initWithFrame:
@@ -561,8 +600,9 @@
         [card addSubview:subHeader];
         rowY += sectionHeaderHeight;
 
-        // Move rows
-        for (NSDictionary *move in moves) {
+        // Move rows (capped)
+        for (NSInteger i = 0; i < showing; i++) {
+            NSDictionary *move = moves[i];
             NSString *moveName = move[@"name"] ?: @"";
             NSInteger level = [move[@"level"] integerValue];
             NSString *moveType = move[@"type"] ?: @"";
@@ -636,6 +676,19 @@
             [card addSubview:ppLabel];
 
             rowY += moveRowHeight;
+        }
+
+        // "...and X more" if truncated
+        if ((NSInteger)moves.count > maxPerSection) {
+            UILabel *moreLabel = [[UILabel alloc] initWithFrame:
+                CGRectMake(CARD_PADDING, rowY, innerWidth, moreRowHeight)];
+            moreLabel.text = [NSString stringWithFormat:@"...and %ld more",
+                              (long)(moves.count - maxPerSection)];
+            moreLabel.font = [UIFont italicSystemFontOfSize:11];
+            moreLabel.textColor = [UIColor grayColor];
+            moreLabel.backgroundColor = [UIColor clearColor];
+            [card addSubview:moreLabel];
+            rowY += moreRowHeight;
         }
     }
 

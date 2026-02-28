@@ -40,7 +40,11 @@
     [self styleNavBar];
 
     if (self.moveID > 0) {
+        CFAbsoluteTime loadStart = CFAbsoluteTimeGetCurrent();
         self.move = [[DataManager sharedManager] moveDetailWithID:self.moveID];
+        NSLog(@"[PERF] MoveDetailVC loadData: %.1fms (id=%ld, name=%@)",
+              (CFAbsoluteTimeGetCurrent() - loadStart) * 1000,
+              (long)self.moveID, self.move.name ?: @"nil");
         self.title = self.move.name ?: @"Move";
     }
 }
@@ -49,7 +53,10 @@
     [super viewDidLayoutSubviews];
     CGFloat w = self.view.bounds.size.width;
     if (w > 0 && w != self.lastBuiltWidth) {
+        CGFloat oldWidth = self.lastBuiltWidth;
         self.lastBuiltWidth = w;
+        NSLog(@"[PERF] MoveDetailVC viewDidLayoutSubviews: width %.0f -> %.0f (move=%@)",
+              oldWidth, w, self.move.name ?: @"nil");
         [self rebuildLayout];
     }
 }
@@ -108,14 +115,37 @@
     CGFloat cardWidth = contentWidth - (CARD_MARGIN * 2);
     CGFloat y = CARD_SPACING;
 
+    CFAbsoluteTime totalStart = CFAbsoluteTimeGetCurrent();
+    CFAbsoluteTime cardStart;
+
+    cardStart = CFAbsoluteTimeGetCurrent();
     y = [self buildHeaderCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   header: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
+
+    cardStart = CFAbsoluteTimeGetCurrent();
     y = [self buildEffectCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   effect: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
+
+    cardStart = CFAbsoluteTimeGetCurrent();
     y = [self buildStatsCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   stats: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
+
+    cardStart = CFAbsoluteTimeGetCurrent();
     y = [self buildMetaCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   meta: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
+
+    cardStart = CFAbsoluteTimeGetCurrent();
     y = [self buildLearnedByCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   learnedBy: %.1fms (%lu pokemon)",
+          (CFAbsoluteTimeGetCurrent() - cardStart) * 1000,
+          (unsigned long)self.move.learnedBy.count);
 
     y += CARD_SPACING;
     self.scrollView.contentSize = CGSizeMake(contentWidth, y);
+
+    NSLog(@"[PERF] MoveDetailVC rebuildLayout TOTAL: %.1fms (move=%@, width=%.0f)",
+          (CFAbsoluteTimeGetCurrent() - totalStart) * 1000,
+          self.move.name ?: @"nil", contentWidth);
 }
 
 - (UIView *)createCardAtY:(CGFloat)y width:(CGFloat)width height:(CGFloat)height {
@@ -397,17 +427,11 @@
         NSInteger pokemonID = [learnedBy[i] integerValue];
         NSString *name = [dm pokemonNameForID:pokemonID];
 
-        // Sprite
-        NSString *spriteName = [NSString stringWithFormat:@"%ld", (long)pokemonID];
-        NSString *spritePath = [[NSBundle mainBundle] pathForResource:spriteName
-                                                              ofType:@"png"
-                                                         inDirectory:@"sprites"];
+        // Sprite (from shared cache)
         UIImageView *sprite = [[UIImageView alloc] initWithFrame:
             CGRectMake(CARD_PADDING, rowY + 2, 24, 24)];
         sprite.contentMode = UIViewContentModeScaleAspectFit;
-        if (spritePath) {
-            sprite.image = [[UIImage alloc] initWithContentsOfFile:spritePath];
-        }
+        sprite.image = [dm spriteForPokemonID:pokemonID];
         [card addSubview:sprite];
 
         // Number
