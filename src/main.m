@@ -6,6 +6,7 @@
 #import "MoveDetailVC.h"
 #import "AbilityListVC.h"
 #import "AbilityDetailVC.h"
+#import "ItemCategoryListVC.h"
 #import "ItemListVC.h"
 #import "ItemDetailVC.h"
 #import "NatureListVC.h"
@@ -405,12 +406,12 @@
     }
 
     // ─── Tab 4: Items ───────────────────────────────────────
-    ItemListVC *itemList = [[ItemListVC alloc] init];
+    ItemCategoryListVC *itemCategoryList = [[ItemCategoryListVC alloc] init];
     UIViewController *itemsTab;
 
     if (isiPad) {
         UINavigationController *itemMasterNav = [[UINavigationController alloc]
-            initWithRootViewController:itemList];
+            initWithRootViewController:itemCategoryList];
         ItemDetailVC *itemDetail = [[ItemDetailVC alloc] init];
         UINavigationController *itemDetailNav = [[UINavigationController alloc]
             initWithRootViewController:itemDetail];
@@ -423,7 +424,7 @@
         itemsTab = itemsSplit;
     } else {
         UINavigationController *itemsNav = [[UINavigationController alloc]
-            initWithRootViewController:itemList];
+            initWithRootViewController:itemCategoryList];
         itemsNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Items"
             image:[self itemsIcon] tag:4];
         itemsTab = itemsNav;

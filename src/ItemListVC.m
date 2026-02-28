@@ -24,9 +24,21 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
 
-    self.title = @"Items";
+    if (!self.title) self.title = @"Items";
     self.filterState = [[FilterState alloc] init];
-    self.allItems = [[DataManager sharedManager] allItemSummaries];
+
+    NSArray *all = [[DataManager sharedManager] allItemSummaries];
+    if (_categoryFilter.length > 0) {
+        NSMutableArray *filtered = [[NSMutableArray alloc] init];
+        for (NSDictionary *item in all) {
+            if ([item[@"category"] isEqualToString:_categoryFilter]) {
+                [filtered addObject:item];
+            }
+        }
+        self.allItems = filtered;
+    } else {
+        self.allItems = all;
+    }
     self.displayedItems = self.allItems;
     self.filteredItems = @[];
 
@@ -158,9 +170,13 @@
     if ([_filterState.sortBy isEqualToString:@"number"]) {
         self.displayedItems = self.allItems;
     } else {
-        self.displayedItems = [[DataManager sharedManager]
+        NSArray *sorted = [[DataManager sharedManager]
             searchItemsWithQuery:nil
                           sortBy:_filterState.sortBy];
+        if (_categoryFilter.length > 0) {
+            sorted = [self filterItems:sorted byCategory:_categoryFilter];
+        }
+        self.displayedItems = sorted;
     }
 }
 
@@ -227,13 +243,29 @@
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
 }
 
+#pragma mark - Category Filtering
+
+- (NSArray *)filterItems:(NSArray *)items byCategory:(NSString *)category {
+    NSMutableArray *result = [[NSMutableArray alloc] init];
+    for (NSDictionary *item in items) {
+        if ([item[@"category"] isEqualToString:category]) {
+            [result addObject:item];
+        }
+    }
+    return result;
+}
+
 #pragma mark - UISearchDisplayDelegate
 
 - (BOOL)searchDisplayController:(UISearchDisplayController *)controller
     shouldReloadTableForSearchString:(NSString *)searchString {
-    self.filteredItems = [[DataManager sharedManager]
+    NSArray *results = [[DataManager sharedManager]
         searchItemsWithQuery:searchString
                       sortBy:_filterState.sortBy];
+    if (_categoryFilter.length > 0) {
+        results = [self filterItems:results byCategory:_categoryFilter];
+    }
+    self.filteredItems = results;
     return YES;
 }
 
