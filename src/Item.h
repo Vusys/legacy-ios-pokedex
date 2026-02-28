@@ -13,6 +13,7 @@
 @property (nonatomic, strong) NSArray *heldBy;         // array of dicts: id, name
 @property (nonatomic, strong) NSNumber *flingPower;     // nil if not applicable
 @property (nonatomic, strong) NSString *flingEffect;    // nil if not applicable
+@property (nonatomic, strong) NSDictionary *teachesMove; // nil if not TM/HM
 
 + (instancetype)itemFromDictionary:(NSDictionary *)dict;
 

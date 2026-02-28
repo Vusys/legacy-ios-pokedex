@@ -67,6 +67,9 @@
 - (UIImage *)femaleSpriteForPokemonID:(NSInteger)pokemonID;
 - (UIImage *)spriteForItemName:(NSString *)apiName;
 
+// Types data (for type effectiveness calculations)
+- (NSArray *)allTypes;
+
 // Natures (all data in single index, no separate detail plists)
 - (NSArray *)allNatureSummaries;
 - (NSArray *)searchNaturesWithQuery:(NSString *)query

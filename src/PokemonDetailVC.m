@@ -142,10 +142,20 @@
     y = [self buildStatsCard:y cardWidth:cardWidth];
     NSLog(@"[PERF]   stats: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
 
+    // ─── Type Effectiveness Card ────────────────────────────
+    cardStart = CFAbsoluteTimeGetCurrent();
+    y = [self buildTypeEffectivenessCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   type_eff: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
+
     // ─── Info Card ──────────────────────────────────────────
     cardStart = CFAbsoluteTimeGetCurrent();
     y = [self buildInfoCard:y cardWidth:cardWidth];
     NSLog(@"[PERF]   info: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
+
+    // ─── Wild Held Items Card ───────────────────────────────
+    cardStart = CFAbsoluteTimeGetCurrent();
+    y = [self buildHeldItemsCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   held_items: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
 
     // ─── Abilities Card ─────────────────────────────────────
     cardStart = CFAbsoluteTimeGetCurrent();
@@ -156,6 +166,11 @@
     cardStart = CFAbsoluteTimeGetCurrent();
     y = [self buildBreedingCard:y cardWidth:cardWidth];
     NSLog(@"[PERF]   breeding: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
+
+    // ─── Evolution Chain Card ───────────────────────────────
+    cardStart = CFAbsoluteTimeGetCurrent();
+    y = [self buildEvolutionCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   evolution: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
 
     // ─── Moves Card ─────────────────────────────────────────
     cardStart = CFAbsoluteTimeGetCurrent();
@@ -624,6 +639,426 @@
 
     [self.scrollView addSubview:card];
     return y + cardHeight + CARD_SPACING;
+}
+
+- (CGFloat)buildTypeEffectivenessCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {
+    NSArray *pokemonTypes = self.pokemon.types;
+    if (!pokemonTypes || pokemonTypes.count == 0) return y;
+
+    NSArray *allTypes = [[DataManager sharedManager] allTypes];
+    if (allTypes.count == 0) return y;
+
+    // Build damage_relations lookup: typeName → relations dict
+    NSMutableDictionary *relationsMap = [[NSMutableDictionary alloc] init];
+    for (NSDictionary *typeData in allTypes) {
+        NSString *name = typeData[@"name"];
+        if (name) {
+            relationsMap[name] = typeData[@"damage_relations"] ?: @{};
+        }
+    }
+
+    // For each attacking type, compute defensive multiplier
+    NSMutableDictionary *multipliers = [[NSMutableDictionary alloc] init];
+    for (NSDictionary *typeData in allTypes) {
+        NSString *attackType = typeData[@"name"];
+        if (!attackType) continue;
+
+        CGFloat mult = 1.0;
+        for (NSString *defType in pokemonTypes) {
+            NSDictionary *defRelations = relationsMap[defType];
+            if (!defRelations) continue;
+
+            NSArray *doubleDamageFrom = defRelations[@"double_damage_from"] ?: @[];
+            NSArray *halfDamageFrom = defRelations[@"half_damage_from"] ?: @[];
+            NSArray *noDamageFrom = defRelations[@"no_damage_from"] ?: @[];
+
+            BOOL found = NO;
+            for (NSString *t in noDamageFrom) {
+                if ([t isEqualToString:attackType]) { mult *= 0; found = YES; break; }
+            }
+            if (!found) {
+                for (NSString *t in doubleDamageFrom) {
+                    if ([t isEqualToString:attackType]) { mult *= 2; found = YES; break; }
+                }
+            }
+            if (!found) {
+                for (NSString *t in halfDamageFrom) {
+                    if ([t isEqualToString:attackType]) { mult *= 0.5; break; }
+                }
+            }
+        }
+
+        multipliers[attackType] = @(mult);
+    }
+
+    // Group into categories
+    NSMutableArray *weak4x = [[NSMutableArray alloc] init];
+    NSMutableArray *weak2x = [[NSMutableArray alloc] init];
+    NSMutableArray *resist2x = [[NSMutableArray alloc] init];
+    NSMutableArray *resist4x = [[NSMutableArray alloc] init];
+    NSMutableArray *immune = [[NSMutableArray alloc] init];
+
+    for (NSDictionary *typeData in allTypes) {
+        NSString *name = typeData[@"name"];
+        CGFloat m = [multipliers[name] floatValue];
+        if (m >= 3.9) [weak4x addObject:name];
+        else if (m >= 1.9) [weak2x addObject:name];
+        else if (m <= 0.01) [immune addObject:name];
+        else if (m <= 0.26) [resist4x addObject:name];
+        else if (m <= 0.51) [resist2x addObject:name];
+    }
+
+    // Build category display array
+    NSMutableArray *categories = [[NSMutableArray alloc] init];
+    if (weak4x.count > 0) [categories addObject:@[@"4\u00D7 Weak", weak4x]];
+    if (weak2x.count > 0) [categories addObject:@[@"2\u00D7 Weak", weak2x]];
+    if (resist2x.count > 0) [categories addObject:@[@"\u00BD\u00D7 Resist", resist2x]];
+    if (resist4x.count > 0) [categories addObject:@[@"\u00BC\u00D7 Resist", resist4x]];
+    if (immune.count > 0) [categories addObject:@[@"Immune", immune]];
+
+    if (categories.count == 0) return y;
+
+    // Calculate card height
+    CGFloat headerHeight = 26;
+    CGFloat categoryLabelHeight = 20;
+    CGFloat badgeRowHeight = [TypeBadgeView badgeHeight] + 6;
+    CGFloat contentHeight = headerHeight;
+    for (NSArray *cat in categories) {
+        contentHeight += categoryLabelHeight + badgeRowHeight;
+    }
+    CGFloat cardHeight = CARD_PADDING + contentHeight + CARD_PADDING;
+
+    UIView *card = [self createCardAtY:y width:cardWidth height:cardHeight];
+    [self sectionHeaderWithTitle:@"Type Effectiveness" inCard:card atY:CARD_PADDING];
+
+    CGFloat innerWidth = cardWidth - CARD_PADDING * 2;
+    CGFloat rowY = CARD_PADDING + headerHeight;
+
+    for (NSArray *cat in categories) {
+        NSString *label = cat[0];
+        NSArray *types = cat[1];
+
+        UILabel *catLabel = [[UILabel alloc] initWithFrame:
+            CGRectMake(CARD_PADDING, rowY, innerWidth, categoryLabelHeight)];
+        catLabel.text = label;
+        catLabel.font = [UIFont boldSystemFontOfSize:11];
+        catLabel.textColor = [UIColor colorWithWhite:0.45 alpha:1];
+        catLabel.backgroundColor = [UIColor clearColor];
+        [card addSubview:catLabel];
+        rowY += categoryLabelHeight;
+
+        CGFloat badgeX = CARD_PADDING;
+        CGFloat badgeW = [TypeBadgeView badgeWidth];
+        CGFloat badgeH = [TypeBadgeView badgeHeight];
+        for (NSString *type in types) {
+            // Wrap to next line if needed
+            if (badgeX + badgeW > cardWidth - CARD_PADDING) {
+                badgeX = CARD_PADDING;
+                rowY += badgeH + 4;
+                // Expand card height
+                CGRect frame = card.frame;
+                frame.size.height += badgeH + 4;
+                card.frame = frame;
+                cardHeight += badgeH + 4;
+            }
+            TypeBadgeView *badge = [[TypeBadgeView alloc] initWithTypeName:type];
+            badge.frame = CGRectMake(badgeX, rowY, badgeW, badgeH);
+            [card addSubview:badge];
+            badgeX += badgeW + 4;
+        }
+        rowY += badgeRowHeight;
+    }
+
+    [self.scrollView addSubview:card];
+    return y + cardHeight + CARD_SPACING;
+}
+
+- (CGFloat)buildHeldItemsCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {
+    NSArray *items = self.pokemon.heldItems;
+    if (!items || items.count == 0) return y;
+
+    CGFloat headerHeight = 26;
+    CGFloat rowHeight = 28;
+    CGFloat cardHeight = CARD_PADDING + headerHeight + (rowHeight * items.count) + CARD_PADDING;
+    UIView *card = [self createCardAtY:y width:cardWidth height:cardHeight];
+
+    [self sectionHeaderWithTitle:@"Wild Held Items" inCard:card atY:CARD_PADDING];
+
+    CGFloat rowY = CARD_PADDING + headerHeight;
+    DataManager *dm = [DataManager sharedManager];
+    CGFloat innerWidth = cardWidth - CARD_PADDING * 2;
+
+    for (NSDictionary *item in items) {
+        NSString *name = item[@"name"] ?: @"";
+        NSString *apiName = item[@"api_name"] ?: @"";
+        NSInteger rarity = [item[@"rarity"] integerValue];
+
+        // Item sprite
+        UIImage *sprite = [dm spriteForItemName:apiName];
+        if (sprite) {
+            UIImageView *spriteView = [[UIImageView alloc] initWithFrame:
+                CGRectMake(CARD_PADDING, rowY + 2, 24, 24)];
+            spriteView.contentMode = UIViewContentModeScaleAspectFit;
+            spriteView.image = sprite;
+            [card addSubview:spriteView];
+        }
+
+        // Item name
+        CGFloat nameX = CARD_PADDING + (sprite ? 30 : 0);
+        UILabel *nameLabel = [[UILabel alloc] initWithFrame:
+            CGRectMake(nameX, rowY, innerWidth - 60, rowHeight)];
+        nameLabel.text = name;
+        nameLabel.font = [UIFont systemFontOfSize:BODY_FONT_SIZE];
+        nameLabel.textColor = [UIColor darkTextColor];
+        nameLabel.backgroundColor = [UIColor clearColor];
+        [card addSubview:nameLabel];
+
+        // Rarity percentage (right-aligned)
+        UILabel *rarityLabel = [[UILabel alloc] initWithFrame:
+            CGRectMake(cardWidth - CARD_PADDING - 50, rowY, 50, rowHeight)];
+        rarityLabel.text = [NSString stringWithFormat:@"%ld%%", (long)rarity];
+        rarityLabel.font = [UIFont systemFontOfSize:12];
+        rarityLabel.textColor = [UIColor grayColor];
+        rarityLabel.textAlignment = NSTextAlignmentRight;
+        rarityLabel.backgroundColor = [UIColor clearColor];
+        [card addSubview:rarityLabel];
+
+        rowY += rowHeight;
+    }
+
+    [self.scrollView addSubview:card];
+    return y + cardHeight + CARD_SPACING;
+}
+
+- (CGFloat)buildEvolutionCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {
+    NSArray *chain = self.pokemon.evolutionChain;
+    if (!chain || chain.count < 2) return y;
+
+    // Build evolution pairs from from_id relationships
+    NSMutableArray *pairs = [[NSMutableArray alloc] init];
+    // Build lookup: id → entry
+    NSMutableDictionary *entryById = [[NSMutableDictionary alloc] init];
+    for (NSDictionary *entry in chain) {
+        NSNumber *eid = entry[@"id"];
+        if (eid) entryById[eid] = entry;
+    }
+
+    for (NSDictionary *entry in chain) {
+        id fromId = entry[@"from_id"];
+        if (!fromId || fromId == [NSNull null]) continue;
+        // Null in plist is stored as empty string
+        if ([fromId isKindOfClass:[NSString class]] && [fromId length] == 0) continue;
+        NSDictionary *fromEntry = entryById[@([fromId integerValue])];
+        if (!fromEntry) continue;
+        [pairs addObject:@[fromEntry, entry]];
+    }
+
+    if (pairs.count == 0) return y;
+
+    CGFloat headerHeight = 26;
+    CGFloat pairRowHeight = 40;
+    CGFloat cardHeight = CARD_PADDING + headerHeight + (pairRowHeight * pairs.count) + CARD_PADDING;
+    UIView *card = [self createCardAtY:y width:cardWidth height:cardHeight];
+
+    [self sectionHeaderWithTitle:@"Evolution" inCard:card atY:CARD_PADDING];
+
+    CGFloat rowY = CARD_PADDING + headerHeight;
+    DataManager *dm = [DataManager sharedManager];
+    CGFloat innerWidth = cardWidth - CARD_PADDING * 2;
+
+    for (NSArray *pair in pairs) {
+        NSDictionary *from = pair[0];
+        NSDictionary *to = pair[1];
+        NSInteger fromID = [from[@"id"] integerValue];
+        NSInteger toID = [to[@"id"] integerValue];
+        NSString *fromName = from[@"name"] ?: @"";
+        NSString *toName = to[@"name"] ?: @"";
+        NSString *condition = [self evolutionConditionText:to];
+
+        CGFloat spriteSize = 32;
+        CGFloat nameW = 50;
+        CGFloat arrowW = 14;
+        CGFloat spriteY = rowY + (pairRowHeight - spriteSize) / 2;
+
+        // Left section: [fromSprite][fromName]
+        CGFloat leftX = CARD_PADDING;
+
+        UIImage *fromSprite = [dm spriteForPokemonID:fromID];
+        if (fromSprite) {
+            UIButton *fromBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+            fromBtn.frame = CGRectMake(leftX, spriteY, spriteSize, spriteSize);
+            [fromBtn setImage:fromSprite forState:UIControlStateNormal];
+            fromBtn.tag = fromID;
+            [fromBtn addTarget:self action:@selector(evolutionSpriteTapped:)
+                forControlEvents:UIControlEventTouchUpInside];
+            fromBtn.imageView.contentMode = UIViewContentModeScaleAspectFit;
+            [card addSubview:fromBtn];
+        }
+        leftX += spriteSize + 2;
+
+        UILabel *fromLabel = [[UILabel alloc] initWithFrame:
+            CGRectMake(leftX, rowY, nameW, pairRowHeight)];
+        fromLabel.text = fromName;
+        fromLabel.font = [UIFont systemFontOfSize:10];
+        fromLabel.textColor = [UIColor darkTextColor];
+        fromLabel.backgroundColor = [UIColor clearColor];
+        fromLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        [card addSubview:fromLabel];
+        leftX += nameW;
+
+        // Right section: [toSprite][toName] (right-aligned)
+        CGFloat rightX = cardWidth - CARD_PADDING - nameW;
+
+        UILabel *toLabel = [[UILabel alloc] initWithFrame:
+            CGRectMake(rightX, rowY, nameW, pairRowHeight)];
+        toLabel.text = toName;
+        toLabel.font = [UIFont systemFontOfSize:10];
+        toLabel.textColor = [UIColor darkTextColor];
+        toLabel.textAlignment = NSTextAlignmentRight;
+        toLabel.backgroundColor = [UIColor clearColor];
+        toLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+        [card addSubview:toLabel];
+        rightX -= (spriteSize + 2);
+
+        UIImage *toSprite = [dm spriteForPokemonID:toID];
+        if (toSprite) {
+            UIButton *toBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+            toBtn.frame = CGRectMake(rightX, spriteY, spriteSize, spriteSize);
+            [toBtn setImage:toSprite forState:UIControlStateNormal];
+            toBtn.tag = toID;
+            [toBtn addTarget:self action:@selector(evolutionSpriteTapped:)
+                forControlEvents:UIControlEventTouchUpInside];
+            toBtn.imageView.contentMode = UIViewContentModeScaleAspectFit;
+            [card addSubview:toBtn];
+        }
+
+        // Middle section: [arrow][condition][arrow]
+        CGFloat midStart = leftX;
+        CGFloat midEnd = rightX;
+        CGFloat condWidth = midEnd - midStart - arrowW * 2;
+
+        UILabel *arrow = [[UILabel alloc] initWithFrame:
+            CGRectMake(midStart, rowY, arrowW, pairRowHeight)];
+        arrow.text = @"\u2192";
+        arrow.font = [UIFont systemFontOfSize:12];
+        arrow.textColor = [UIColor grayColor];
+        arrow.textAlignment = NSTextAlignmentCenter;
+        arrow.backgroundColor = [UIColor clearColor];
+        [card addSubview:arrow];
+
+        UILabel *condLabel = [[UILabel alloc] initWithFrame:
+            CGRectMake(midStart + arrowW, rowY, condWidth, pairRowHeight)];
+        condLabel.text = condition;
+        condLabel.font = [UIFont systemFontOfSize:10];
+        condLabel.textColor = [UIColor grayColor];
+        condLabel.textAlignment = NSTextAlignmentCenter;
+        condLabel.backgroundColor = [UIColor clearColor];
+        condLabel.numberOfLines = 2;
+        condLabel.lineBreakMode = NSLineBreakByWordWrapping;
+        [card addSubview:condLabel];
+
+        UILabel *arrow2 = [[UILabel alloc] initWithFrame:
+            CGRectMake(midEnd - arrowW, rowY, arrowW, pairRowHeight)];
+        arrow2.text = @"\u2192";
+        arrow2.font = [UIFont systemFontOfSize:12];
+        arrow2.textColor = [UIColor grayColor];
+        arrow2.textAlignment = NSTextAlignmentCenter;
+        arrow2.backgroundColor = [UIColor clearColor];
+        [card addSubview:arrow2];
+
+        rowY += pairRowHeight;
+    }
+
+    [self.scrollView addSubview:card];
+    return y + cardHeight + CARD_SPACING;
+}
+
+- (void)evolutionSpriteTapped:(UIButton *)sender {
+    NSInteger pokemonID = sender.tag;
+    if (pokemonID <= 0 || pokemonID == self.pokemon.pokemonID) return;
+
+    PokemonDetailVC *detailVC = [[PokemonDetailVC alloc] init];
+    detailVC.pokemonID = pokemonID;
+    UINavigationController *detailNav = [[UINavigationController alloc]
+        initWithRootViewController:detailVC];
+
+    UISplitViewController *splitVC = self.splitViewController;
+    if (splitVC) {
+        splitVC.viewControllers = @[splitVC.viewControllers[0], detailNav];
+    } else {
+        [self.navigationController pushViewController:detailVC animated:YES];
+    }
+}
+
+- (NSString *)evolutionConditionText:(NSDictionary *)entry {
+    NSMutableArray *parts = [[NSMutableArray alloc] init];
+
+    NSString *trigger = entry[@"trigger"] ?: @"";
+
+    id minLevel = entry[@"min_level"];
+    if (minLevel && minLevel != [NSNull null] && [minLevel integerValue] > 0) {
+        [parts addObject:[NSString stringWithFormat:@"Lv. %@", minLevel]];
+    } else if ([trigger isEqualToString:@"level-up"] && parts.count == 0) {
+        // Will add "Level Up" at end if no other conditions apply
+    }
+
+    if (entry[@"item"] && entry[@"item"] != [NSNull null]) {
+        [parts addObject:entry[@"item"]];
+    }
+    if (entry[@"held_item"] && entry[@"held_item"] != [NSNull null]) {
+        [parts addObject:[NSString stringWithFormat:@"Hold %@", entry[@"held_item"]]];
+    }
+    if (entry[@"known_move"] && entry[@"known_move"] != [NSNull null]) {
+        [parts addObject:[NSString stringWithFormat:@"Know %@", entry[@"known_move"]]];
+    }
+    if (entry[@"known_move_type"] && entry[@"known_move_type"] != [NSNull null]) {
+        [parts addObject:[NSString stringWithFormat:@"%@ move", entry[@"known_move_type"]]];
+    }
+    if (entry[@"min_happiness"] && entry[@"min_happiness"] != [NSNull null]) {
+        [parts addObject:@"Happiness"];
+    }
+    if (entry[@"min_beauty"] && entry[@"min_beauty"] != [NSNull null]) {
+        [parts addObject:@"Beauty"];
+    }
+    if (entry[@"min_affection"] && entry[@"min_affection"] != [NSNull null]) {
+        [parts addObject:@"Affection"];
+    }
+    if (entry[@"time_of_day"] && entry[@"time_of_day"] != [NSNull null]) {
+        NSString *tod = entry[@"time_of_day"];
+        if (tod.length > 0) {
+            [parts addObject:[self titleCase:tod]];
+        }
+    }
+    if ([entry[@"needs_overworld_rain"] boolValue]) {
+        [parts addObject:@"Rain"];
+    }
+    if ([entry[@"turn_upside_down"] boolValue]) {
+        [parts addObject:@"Upside Down"];
+    }
+    if (entry[@"trade_species"] && entry[@"trade_species"] != [NSNull null]) {
+        [parts addObject:[NSString stringWithFormat:@"Trade w/ %@", entry[@"trade_species"]]];
+    }
+    id gender = entry[@"gender"];
+    if (gender && gender != [NSNull null]) {
+        NSInteger g = [gender integerValue];
+        if (g == 1) [parts addObject:@"\u2640"];
+        else if (g == 2) [parts addObject:@"\u2642"];
+    }
+
+    if ([trigger isEqualToString:@"trade"] && parts.count == 0) {
+        [parts addObject:@"Trade"];
+    }
+    if ([trigger isEqualToString:@"use-item"] && parts.count == 0) {
+        [parts addObject:@"Use Item"];
+    }
+    if ([trigger isEqualToString:@"level-up"] && parts.count == 0) {
+        [parts addObject:@"Level Up"];
+    }
+
+    if (parts.count == 0) {
+        return [self titleCase:trigger];
+    }
+    return [parts componentsJoinedByString:@", "];
 }
 
 - (CGFloat)buildMovesCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {

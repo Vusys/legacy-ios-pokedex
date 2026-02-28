@@ -213,7 +213,7 @@ function clean_flavor_text(string $text): string {
 /**
  * Walk the evolution chain tree and flatten into an ordered array.
  */
-function flatten_evolution_chain(array $chainNode, array &$result = []): array {
+function flatten_evolution_chain(array $chainNode, array &$result = [], ?int $parentId = null): array {
     $speciesUrl = $chainNode['species']['url'] ?? '';
     $speciesId = null;
     if (preg_match('/pokemon-species\/(\d+)/', $speciesUrl, $m)) {
@@ -223,6 +223,7 @@ function flatten_evolution_chain(array $chainNode, array &$result = []): array {
     $entry = [
         'id' => $speciesId,
         'name' => title_case_name($chainNode['species']['name'] ?? ''),
+        'from_id' => $parentId,
     ];
 
     // Add evolution details if this isn't the base form
@@ -275,7 +276,7 @@ function flatten_evolution_chain(array $chainNode, array &$result = []): array {
     // Recurse into evolutions
     if (!empty($chainNode['evolves_to'])) {
         foreach ($chainNode['evolves_to'] as $evolution) {
-            flatten_evolution_chain($evolution, $result);
+            flatten_evolution_chain($evolution, $result, $speciesId);
         }
     }
 
@@ -620,6 +621,24 @@ function main(): void {
             return strcmp($a['name'], $b['name']);
         });
 
+        // Extract held items
+        $heldItems = [];
+        foreach ($pokemonData['held_items'] ?? [] as $hi) {
+            $itemName = $hi['item']['name'] ?? '';
+            if (!$itemName) continue;
+            // Take max rarity across all version details
+            $maxRarity = 0;
+            foreach ($hi['version_details'] ?? [] as $vd) {
+                $rarity = $vd['rarity'] ?? 0;
+                if ($rarity > $maxRarity) $maxRarity = $rarity;
+            }
+            $heldItems[] = [
+                'name' => title_case_name($itemName),
+                'api_name' => $itemName,
+                'rarity' => $maxRarity,
+            ];
+        }
+
         // Extract egg groups
         $eggGroups = [];
         foreach ($speciesData['egg_groups'] ?? [] as $eg) {
@@ -653,6 +672,7 @@ function main(): void {
             'evolution_chain' => $evolutionChain,
             'has_female_sprite' => $hasFemaleSprite,
             'moves' => $moves,
+            'held_items' => $heldItems,
         ];
 
         // Write detail plist
@@ -950,6 +970,42 @@ function main(): void {
     write_plist(ABILITIES_DIR . '/index.plist', $abilitiesIndex);
     echo "\n";
 
+    // Build machine lookup: item_id → {move_name, move_id, move_type}
+    echo "Building machine lookup...\n";
+    $machineLookup = []; // keyed by item_id
+    $machineFiles = glob(CACHE_DIR . '/machines/*.json');
+    foreach ($machineFiles as $mf) {
+        $machineJson = json_decode(file_get_contents($mf), true);
+        if (!$machineJson) continue;
+
+        $itemUrl = $machineJson['item']['url'] ?? '';
+        $moveUrl = $machineJson['move']['url'] ?? '';
+        $itemId = null;
+        $moveId = null;
+        if (preg_match('/\/item\/(\d+)\/?$/', $itemUrl, $m)) {
+            $itemId = (int)$m[1];
+        }
+        if (preg_match('/\/move\/(\d+)\/?$/', $moveUrl, $m)) {
+            $moveId = (int)$m[1];
+        }
+        if ($itemId === null || $moveId === null) continue;
+
+        $moveName = title_case_name($machineJson['move']['name'] ?? '');
+        $moveRawName = $machineJson['move']['name'] ?? '';
+        $moveType = '';
+        if (isset($moveLookup[$moveRawName])) {
+            $moveType = $moveLookup[$moveRawName]['type'];
+        }
+
+        // Prefer later version groups (higher machine IDs tend to be newer)
+        $machineLookup[$itemId] = [
+            'move_name' => $moveName,
+            'move_id' => $moveId,
+            'move_type' => $moveType,
+        ];
+    }
+    echo "  Loaded " . count($machineLookup) . " machine→item mappings.\n\n";
+
     // Process items
     echo "--- Processing Items ---\n";
     $itemFiles = glob(CACHE_DIR . '/items/*.json');
@@ -1016,6 +1072,11 @@ function main(): void {
         $flingEffect = $itemJson['fling_effect']['name'] ?? null;
         if ($flingEffect !== null) {
             $itemDetail['fling_effect'] = $flingEffect;
+        }
+
+        // Add teaches_move for TM/HM items
+        if (isset($machineLookup[$itemId])) {
+            $itemDetail['teaches_move'] = $machineLookup[$itemId];
         }
 
         write_plist(ITEMS_DIR . "/{$itemId}.plist", $itemDetail);

@@ -1,6 +1,8 @@
 #import "ItemDetailVC.h"
 #import "Item.h"
 #import "DataManager.h"
+#import "TypeBadgeView.h"
+#import "PokemonType.h"
 #import "TexturedBackgroundView.h"
 #import <QuartzCore/QuartzCore.h>
 
@@ -107,6 +109,7 @@
     CGFloat y = CARD_SPACING;
 
     y = [self buildHeaderCard:y cardWidth:cardWidth];
+    y = [self buildTeachesMoveCard:y cardWidth:cardWidth];
     y = [self buildEffectCard:y cardWidth:cardWidth];
     y = [self buildFlingCard:y cardWidth:cardWidth];
     y = [self buildHeldByCard:y cardWidth:cardWidth];
@@ -195,6 +198,45 @@
     costLabel.textColor = [UIColor colorWithWhite:0.40 alpha:1];
     costLabel.backgroundColor = [UIColor clearColor];
     [card addSubview:costLabel];
+
+    [self.scrollView addSubview:card];
+    return y + cardHeight + CARD_SPACING;
+}
+
+- (CGFloat)buildTeachesMoveCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {
+    NSDictionary *teaches = self.item.teachesMove;
+    if (!teaches) return y;
+
+    NSString *moveName = teaches[@"move_name"] ?: @"";
+    NSString *moveType = teaches[@"move_type"] ?: @"";
+    if (moveName.length == 0) return y;
+
+    CGFloat headerHeight = 26;
+    CGFloat rowHeight = [TypeBadgeView badgeHeight] + 8;
+    CGFloat cardHeight = CARD_PADDING + headerHeight + rowHeight + CARD_PADDING;
+    UIView *card = [self createCardAtY:y width:cardWidth height:cardHeight];
+
+    [self sectionHeaderWithTitle:@"Teaches" inCard:card atY:CARD_PADDING];
+
+    CGFloat rowY = CARD_PADDING + headerHeight + 4;
+    CGFloat x = CARD_PADDING;
+
+    // Type badge
+    if (moveType.length > 0) {
+        TypeBadgeView *badge = [[TypeBadgeView alloc] initWithTypeName:moveType];
+        badge.frame = CGRectMake(x, rowY, [TypeBadgeView badgeWidth], [TypeBadgeView badgeHeight]);
+        [card addSubview:badge];
+        x += [TypeBadgeView badgeWidth] + 8;
+    }
+
+    // Move name
+    UILabel *nameLabel = [[UILabel alloc] initWithFrame:
+        CGRectMake(x, rowY - 2, cardWidth - x - CARD_PADDING, 24)];
+    nameLabel.text = moveName;
+    nameLabel.font = [UIFont boldSystemFontOfSize:BODY_FONT_SIZE];
+    nameLabel.textColor = [UIColor darkTextColor];
+    nameLabel.backgroundColor = [UIColor clearColor];
+    [card addSubview:nameLabel];
 
     [self.scrollView addSubview:card];
     return y + cardHeight + CARD_SPACING;

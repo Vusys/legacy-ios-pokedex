@@ -150,7 +150,7 @@ function main(): void {
     // Ensure cache directories exist
     foreach (['pokemon', 'species', 'types', 'moves', 'move-damage-class', 'evolution-chains',
               'sprites', 'sprites-artwork', 'sprites-shiny', 'sprites-back', 'sprites-female',
-              'abilities', 'items', 'sprites-items',
+              'abilities', 'items', 'sprites-items', 'machines',
               'natures', 'egg-groups', 'berries', 'sprites-berries'] as $dir) {
         $path = CACHE_DIR . '/' . $dir;
         if (!is_dir($path)) mkdir($path, 0755, true);
@@ -564,6 +564,41 @@ function main(): void {
     $berrySpritesTotal = $berrySpritesFetched + $berrySpritesCached;
     echo "  Berry Sprites: {$berrySpritesTotal} total (fetched: {$berrySpritesFetched}, cached: {$berrySpritesCached}, missing: {$berrySpritesMissing})\n\n";
 
+    // Step 16: Fetch machine data (for TM/HM → move mapping)
+    echo "Fetching machine list to discover IDs...\n";
+    $machineListData = fetch_json(BASE_URL . '/machine?limit=10000');
+    $totalMachines = $machineListData['count'] ?? 0;
+    $machineIds = [];
+    foreach (($machineListData['results'] ?? []) as $entry) {
+        if (preg_match('/\/machine\/(\d+)\/?$/', $entry['url'], $m)) {
+            $machineIds[] = (int)$m[1];
+        }
+    }
+    sort($machineIds);
+    echo "Total machines: {$totalMachines} (IDs discovered: " . count($machineIds) . ")\n\n";
+
+    echo "--- Fetching Machine data ---\n";
+    $fetchedMachines = 0;
+    $skippedMachines = 0;
+    $processedMachines = 0;
+    foreach ($machineIds as $id) {
+        $processedMachines++;
+        if (is_cached('machines', (string)$id)) {
+            $skippedMachines++;
+        } else {
+            $data = fetch_json_cached('machines', (string)$id, BASE_URL . "/machine/{$id}");
+            if ($data === null) {
+                echo "  WARN: Failed to fetch machine/{$id}, skipping\n";
+            }
+            $fetchedMachines++;
+        }
+
+        if ($processedMachines % 200 === 0 || $processedMachines === count($machineIds)) {
+            echo "  Machines: {$processedMachines}/" . count($machineIds) . " (fetched: {$fetchedMachines}, cached: {$skippedMachines})\n";
+        }
+    }
+    echo "\n";
+
     // Summary
     echo "=== Fetch Complete ===\n";
     echo "  Pokemon:   {$totalSpecies} entries\n";
@@ -589,6 +624,7 @@ function main(): void {
     echo "  Egg Groups: {$totalEggGroups} entries\n";
     echo "  Berries:   {$totalBerries} entries\n";
     echo "  Berry Sprites:  {$berrySpritesTotal} downloaded, {$berrySpritesMissing} missing\n";
+    echo "  Machines:  {$totalMachines} entries\n";
     echo "  Cache dir: " . realpath(CACHE_DIR) . "\n\n";
     echo "Next step: php tools/process.php\n";
 }

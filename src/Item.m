@@ -25,6 +25,12 @@
         item.flingEffect = flingEffect;
     }
 
+    id teachesMove = dict[@"teaches_move"];
+    if (teachesMove && teachesMove != [NSNull null] &&
+        [teachesMove isKindOfClass:[NSDictionary class]]) {
+        item.teachesMove = teachesMove;
+    }
+
     return item;
 }
 

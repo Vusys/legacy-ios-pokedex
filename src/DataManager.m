@@ -18,6 +18,7 @@
 @property (nonatomic, strong) NSMutableDictionary *itemDetailCache;
 @property (nonatomic, strong) NSDictionary *pokemonNameLookup;
 @property (nonatomic, strong) NSCache *spriteCache;
+@property (nonatomic, strong) NSArray *typesData;
 @property (nonatomic, strong) NSArray *naturesIndex;
 @property (nonatomic, strong) NSArray *eggGroupsIndex;
 @property (nonatomic, strong) NSArray *berriesIndex;
@@ -549,6 +550,29 @@
         [_spriteCache setObject:image forKey:key];
     }
     return image;
+}
+
+#pragma mark - Types Data
+
+- (NSArray *)allTypes {
+    if (!_typesData) {
+        CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
+        NSString *path = [[NSBundle mainBundle] pathForResource:@"types"
+                                                        ofType:@"plist"
+                                                   inDirectory:@"data"];
+        if (path) {
+            _typesData = [NSArray arrayWithContentsOfFile:path];
+        }
+        if (!_typesData) {
+            NSLog(@"WARNING: Could not load types.plist");
+            _typesData = @[];
+        } else {
+            NSLog(@"[PERF] DataManager loadTypes: %.1fms (%lu entries)",
+                  (CFAbsoluteTimeGetCurrent() - start) * 1000,
+                  (unsigned long)_typesData.count);
+        }
+    }
+    return _typesData;
 }
 
 #pragma mark - Natures Index
