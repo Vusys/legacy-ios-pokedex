@@ -147,7 +147,7 @@ Evolution chain data is already in each Pokémon's plist (the `evolution_chain` 
 
 ## Phase 8: Natures, Egg Groups + Berries ✓
 
-**Status: Complete (v1.2)**
+**Status: Complete (v1.2, updated in v1.4)**
 
 ### What was built
 
@@ -166,7 +166,7 @@ Evolution chain data is already in each Pokémon's plist (the `evolution_chain` 
 
 ## Phase 9: iPhone/iPod Touch Support ✓
 
-**Status: Complete (v1.3)**
+**Status: Complete (v1.3, updated in v1.4)**
 
 ### What was built
 
