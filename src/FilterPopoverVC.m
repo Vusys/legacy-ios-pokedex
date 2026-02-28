@@ -34,6 +34,7 @@ static NSString *generationDisplayName(NSString *gen) {
 @property (nonatomic, strong) NSMutableArray *typeBadges;
 @property (nonatomic, strong) NSMutableArray *genButtons;
 @property (nonatomic, strong) NSMutableArray *catButtons;
+@property (nonatomic, strong) UIView *bottomBar;
 @end
 
 @implementation FilterPopoverVC
@@ -82,11 +83,15 @@ static NSString *generationDisplayName(NSString *gen) {
 
     if (!_filterMode) _filterMode = @"pokemon";
 
-    // Add Cancel button on iPhone (modal presentation)
+    // Add Cancel/Apply buttons on iPhone (modal presentation)
     if (UI_USER_INTERFACE_IDIOM() != UIUserInterfaceIdiomPad) {
         self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc]
             initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
             target:self action:@selector(cancelTapped)];
+        self.navigationItem.rightBarButtonItem = [[UIBarButtonItem alloc]
+            initWithTitle:@"Apply"
+                    style:UIBarButtonItemStyleDone
+                   target:self action:@selector(applyTapped)];
         self.title = @"Filter";
     }
 
@@ -398,17 +403,17 @@ static NSString *generationDisplayName(NSString *gen) {
 #pragma mark - Bottom Bar
 
 - (void)buildBottomBarAtY:(CGFloat)barY {
-    UIView *bar = [[UIView alloc] initWithFrame:
+    _bottomBar = [[UIView alloc] initWithFrame:
         CGRectMake(0, barY, [self contentWidth], BOTTOM_BAR_HEIGHT)];
-    bar.backgroundColor = [UIColor colorWithWhite:0.92 alpha:1];
-    bar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    _bottomBar.backgroundColor = [UIColor colorWithWhite:0.92 alpha:1];
+    _bottomBar.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleTopMargin;
 
     // Top separator
     UIView *sep = [[UIView alloc] initWithFrame:
         CGRectMake(0, 0, [self contentWidth], 0.5)];
     sep.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     sep.backgroundColor = [UIColor colorWithWhite:0.75 alpha:1];
-    [bar addSubview:sep];
+    [_bottomBar addSubview:sep];
 
     // Reset button
     UIButton *resetBtn = [UIButton buttonWithType:UIButtonTypeRoundedRect];
@@ -419,7 +424,7 @@ static NSString *generationDisplayName(NSString *gen) {
                    forState:UIControlStateNormal];
     [resetBtn addTarget:self action:@selector(resetTapped)
                forControlEvents:UIControlEventTouchUpInside];
-    [bar addSubview:resetBtn];
+    [_bottomBar addSubview:resetBtn];
 
     // Apply button
     UIButton *applyBtn = [UIButton buttonWithType:UIButtonTypeRoundedRect];
@@ -432,9 +437,17 @@ static NSString *generationDisplayName(NSString *gen) {
     [applyBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     [applyBtn addTarget:self action:@selector(applyTapped)
                forControlEvents:UIControlEventTouchUpInside];
-    [bar addSubview:applyBtn];
+    [_bottomBar addSubview:applyBtn];
 
-    [self.view addSubview:bar];
+    [self.view addSubview:_bottomBar];
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    CGFloat viewH = self.view.bounds.size.height;
+    CGFloat viewW = self.view.bounds.size.width;
+    _bottomBar.frame = CGRectMake(0, viewH - BOTTOM_BAR_HEIGHT, viewW, BOTTOM_BAR_HEIGHT);
+    _scrollView.frame = CGRectMake(0, 0, viewW, viewH - BOTTOM_BAR_HEIGHT);
 }
 
 - (void)resetTapped {

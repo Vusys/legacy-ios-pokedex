@@ -130,6 +130,7 @@
             [_filterPopover dismissPopoverAnimated:YES];
             return;
         }
+        [filterVC view]; // Force viewDidLoad so contentSizeForViewInPopover is set
         _filterPopover = [[UIPopoverController alloc] initWithContentViewController:filterVC];
         [_filterPopover presentPopoverFromBarButtonItem:sender
                                permittedArrowDirections:UIPopoverArrowDirectionAny

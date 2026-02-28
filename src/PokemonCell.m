@@ -106,6 +106,16 @@
     }
 }
 
+- (void)setSelected:(BOOL)selected animated:(BOOL)animated {
+    [super setSelected:selected animated:animated];
+    self.spriteView.backgroundColor = [UIColor colorWithWhite:0.95 alpha:1];
+}
+
+- (void)setHighlighted:(BOOL)highlighted animated:(BOOL)animated {
+    [super setHighlighted:highlighted animated:animated];
+    self.spriteView.backgroundColor = [UIColor colorWithWhite:0.95 alpha:1];
+}
+
 - (void)prepareForReuse {
     [super prepareForReuse];
     self.spriteView.image = nil;

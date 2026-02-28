@@ -56,6 +56,11 @@
     }
 }
 
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self styleNavBar];
+}
+
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     CGFloat w = self.view.bounds.size.width;
@@ -261,7 +266,7 @@
     // Artwork row
     CGFloat artworkRowHeight = artworkDisplaySize + 8;
     // Sprite strip row (front/back + toggle buttons)
-    CGFloat spriteStripH = 72;
+    CGFloat spriteStripH = 88;
 
     CGFloat cardHeight = CARD_PADDING + infoHeight + artworkRowHeight + spriteStripH + CARD_PADDING;
     UIView *card = [self createCardAtY:y width:cardWidth height:cardHeight];
@@ -324,7 +329,7 @@
 
     // ── Sprite strip: front + back sprites and toggle buttons ──
     CGFloat stripY = cy;
-    CGFloat smallSprite = 64;
+    CGFloat smallSprite = 80;
 
     // Front sprite
     CGFloat stripX = CARD_PADDING;

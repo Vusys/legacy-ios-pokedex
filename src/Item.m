@@ -36,7 +36,7 @@
 
 - (NSString *)costString {
     if (self.cost == 0) return @"Free";
-    return [NSString stringWithFormat:@"₽%ld", (long)self.cost];
+    return [NSString stringWithFormat:@"¥%ld", (long)self.cost];
 }
 
 - (NSString *)categoryDisplay {

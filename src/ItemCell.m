@@ -69,7 +69,7 @@
     if (cost == 0) {
         self.costLabel.text = @"—";
     } else {
-        self.costLabel.text = [NSString stringWithFormat:@"₽%ld", (long)cost];
+        self.costLabel.text = [NSString stringWithFormat:@"¥%ld", (long)cost];
     }
 
     // Sprite

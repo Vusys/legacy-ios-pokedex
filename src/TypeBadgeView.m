@@ -4,6 +4,7 @@
 
 @interface TypeBadgeView ()
 @property (nonatomic, strong) UILabel *label;
+@property (nonatomic, strong) UIColor *typeColor;
 @end
 
 @implementation TypeBadgeView
@@ -18,8 +19,8 @@
     if (self) {
         _typeName = typeName;
 
-        UIColor *typeColor = [PokemonType colorForTypeName:typeName];
-        self.backgroundColor = typeColor;
+        _typeColor = [PokemonType colorForTypeName:typeName];
+        self.backgroundColor = _typeColor;
         self.layer.cornerRadius = 3;
         self.layer.borderWidth = 0.5;
         self.layer.borderColor = [[PokemonType darkColorForTypeName:typeName] CGColor];
@@ -36,6 +37,15 @@
         [self addSubview:_label];
     }
     return self;
+}
+
+- (void)setBackgroundColor:(UIColor *)backgroundColor {
+    // Prevent UIKit from clearing our background during cell selection
+    if (_typeColor) {
+        [super setBackgroundColor:_typeColor];
+    } else {
+        [super setBackgroundColor:backgroundColor];
+    }
 }
 
 - (void)drawRect:(CGRect)rect {
