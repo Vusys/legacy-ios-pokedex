@@ -133,6 +133,9 @@
     // ─── Breeding Card ──────────────────────────────────────
     y = [self buildBreedingCard:y cardWidth:cardWidth];
 
+    // ─── Moves Card ─────────────────────────────────────────
+    y = [self buildMovesCard:y cardWidth:cardWidth];
+
     y += CARD_SPACING;
     self.scrollView.contentSize = CGSizeMake(contentWidth, y);
 }
@@ -453,6 +456,191 @@
 
     [self.scrollView addSubview:card];
     return y + cardHeight + CARD_SPACING;
+}
+
+- (CGFloat)buildMovesCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {
+    NSArray *allMoves = self.pokemon.moves;
+    if (!allMoves || allMoves.count == 0) return y;
+
+    // Group moves by method
+    NSMutableArray *levelUp = [[NSMutableArray alloc] init];
+    NSMutableArray *machine = [[NSMutableArray alloc] init];
+    NSMutableArray *egg = [[NSMutableArray alloc] init];
+    NSMutableArray *tutor = [[NSMutableArray alloc] init];
+    NSMutableArray *other = [[NSMutableArray alloc] init];
+
+    for (NSDictionary *move in allMoves) {
+        NSString *method = move[@"method"] ?: @"";
+        if ([method isEqualToString:@"level-up"]) {
+            [levelUp addObject:move];
+        } else if ([method isEqualToString:@"machine"]) {
+            [machine addObject:move];
+        } else if ([method isEqualToString:@"egg"]) {
+            [egg addObject:move];
+        } else if ([method isEqualToString:@"tutor"]) {
+            [tutor addObject:move];
+        } else {
+            [other addObject:move];
+        }
+    }
+
+    // Build sections array
+    NSMutableArray *sections = [[NSMutableArray alloc] init];
+    if (levelUp.count > 0) [sections addObject:@[@"Level-Up Moves", levelUp]];
+    if (machine.count > 0) [sections addObject:@[@"TM/HM Moves", machine]];
+    if (egg.count > 0) [sections addObject:@[@"Egg Moves", egg]];
+    if (tutor.count > 0) [sections addObject:@[@"Tutor Moves", tutor]];
+    if (other.count > 0) [sections addObject:@[@"Other Moves", other]];
+
+    if (sections.count == 0) return y;
+
+    // Calculate card height
+    CGFloat moveRowHeight = 22;
+    CGFloat sectionHeaderHeight = 24;
+    CGFloat mainHeaderHeight = 26;
+    CGFloat colHeaderHeight = 18;
+    CGFloat totalHeight = CARD_PADDING + mainHeaderHeight + colHeaderHeight;
+    for (NSArray *section in sections) {
+        NSArray *moves = section[1];
+        totalHeight += sectionHeaderHeight + (moveRowHeight * moves.count);
+    }
+    totalHeight += CARD_PADDING;
+
+    UIView *card = [self createCardAtY:y width:cardWidth height:totalHeight];
+    [self sectionHeaderWithTitle:@"Moves" inCard:card atY:CARD_PADDING];
+
+    CGFloat innerWidth = cardWidth - CARD_PADDING * 2;
+    CGFloat rowY = CARD_PADDING + mainHeaderHeight;
+
+    // Column headers
+    CGFloat typeColW = 50;
+    CGFloat powColW = 36;
+    CGFloat accColW = 36;
+    CGFloat ppColW = 30;
+    CGFloat statsW = typeColW + powColW + accColW + ppColW;
+    CGFloat nameColW = innerWidth - statsW;
+
+    NSArray *colHeaders = @[
+        @[@"Move", [NSNumber numberWithFloat:0],
+          [NSNumber numberWithFloat:nameColW], [NSNumber numberWithInt:NSTextAlignmentLeft]],
+        @[@"Type", [NSNumber numberWithFloat:nameColW],
+          [NSNumber numberWithFloat:typeColW], [NSNumber numberWithInt:NSTextAlignmentCenter]],
+        @[@"Pow", [NSNumber numberWithFloat:nameColW + typeColW],
+          [NSNumber numberWithFloat:powColW], [NSNumber numberWithInt:NSTextAlignmentCenter]],
+        @[@"Acc", [NSNumber numberWithFloat:nameColW + typeColW + powColW],
+          [NSNumber numberWithFloat:accColW], [NSNumber numberWithInt:NSTextAlignmentCenter]],
+        @[@"PP", [NSNumber numberWithFloat:nameColW + typeColW + powColW + accColW],
+          [NSNumber numberWithFloat:ppColW], [NSNumber numberWithInt:NSTextAlignmentCenter]],
+    ];
+
+    for (NSArray *col in colHeaders) {
+        UILabel *colLabel = [[UILabel alloc] initWithFrame:
+            CGRectMake(CARD_PADDING + [col[1] floatValue], rowY,
+                       [col[2] floatValue], colHeaderHeight)];
+        colLabel.text = col[0];
+        colLabel.font = [UIFont boldSystemFontOfSize:9];
+        colLabel.textColor = [UIColor grayColor];
+        colLabel.textAlignment = [col[3] integerValue];
+        colLabel.backgroundColor = [UIColor clearColor];
+        [card addSubview:colLabel];
+    }
+    rowY += colHeaderHeight;
+
+    // Sections
+    for (NSArray *section in sections) {
+        NSString *sectionTitle = section[0];
+        NSArray *moves = section[1];
+
+        // Section sub-header
+        UILabel *subHeader = [[UILabel alloc] initWithFrame:
+            CGRectMake(CARD_PADDING, rowY, innerWidth, sectionHeaderHeight)];
+        subHeader.text = sectionTitle;
+        subHeader.font = [UIFont boldSystemFontOfSize:11];
+        subHeader.textColor = [UIColor colorWithWhite:0.45 alpha:1];
+        subHeader.backgroundColor = [UIColor colorWithWhite:0.96 alpha:1];
+        [card addSubview:subHeader];
+        rowY += sectionHeaderHeight;
+
+        // Move rows
+        for (NSDictionary *move in moves) {
+            NSString *moveName = move[@"name"] ?: @"";
+            NSInteger level = [move[@"level"] integerValue];
+            NSString *moveType = move[@"type"] ?: @"";
+
+            // Name (with level for level-up moves)
+            NSString *displayName = moveName;
+            if (level > 0) {
+                displayName = [NSString stringWithFormat:@"Lv.%ld %@",
+                               (long)level, moveName];
+            }
+
+            UILabel *nameLabel = [[UILabel alloc] initWithFrame:
+                CGRectMake(CARD_PADDING, rowY, nameColW, moveRowHeight)];
+            nameLabel.text = displayName;
+            nameLabel.font = [UIFont systemFontOfSize:11];
+            nameLabel.textColor = [UIColor darkTextColor];
+            nameLabel.backgroundColor = [UIColor clearColor];
+            nameLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+            [card addSubview:nameLabel];
+
+            // Type
+            if (moveType.length > 0) {
+                UILabel *typeLabel = [[UILabel alloc] initWithFrame:
+                    CGRectMake(CARD_PADDING + nameColW, rowY, typeColW, moveRowHeight)];
+                NSString *abbrev = [[moveType uppercaseString]
+                    substringToIndex:MIN(moveType.length, (NSUInteger)4)];
+                typeLabel.text = abbrev;
+                typeLabel.font = [UIFont boldSystemFontOfSize:9];
+                typeLabel.textColor = [PokemonType colorForTypeName:moveType];
+                typeLabel.textAlignment = NSTextAlignmentCenter;
+                typeLabel.backgroundColor = [UIColor clearColor];
+                [card addSubview:typeLabel];
+            }
+
+            // Power
+            id power = move[@"power"];
+            UILabel *powLabel = [[UILabel alloc] initWithFrame:
+                CGRectMake(CARD_PADDING + nameColW + typeColW, rowY,
+                           powColW, moveRowHeight)];
+            powLabel.text = (power && power != [NSNull null]) ?
+                [NSString stringWithFormat:@"%@", power] : @"—";
+            powLabel.font = [UIFont systemFontOfSize:11];
+            powLabel.textColor = [UIColor darkTextColor];
+            powLabel.textAlignment = NSTextAlignmentCenter;
+            powLabel.backgroundColor = [UIColor clearColor];
+            [card addSubview:powLabel];
+
+            // Accuracy
+            id accuracy = move[@"accuracy"];
+            UILabel *accLabel = [[UILabel alloc] initWithFrame:
+                CGRectMake(CARD_PADDING + nameColW + typeColW + powColW, rowY,
+                           accColW, moveRowHeight)];
+            accLabel.text = (accuracy && accuracy != [NSNull null]) ?
+                [NSString stringWithFormat:@"%@", accuracy] : @"—";
+            accLabel.font = [UIFont systemFontOfSize:11];
+            accLabel.textColor = [UIColor darkTextColor];
+            accLabel.textAlignment = NSTextAlignmentCenter;
+            accLabel.backgroundColor = [UIColor clearColor];
+            [card addSubview:accLabel];
+
+            // PP
+            id pp = move[@"pp"];
+            UILabel *ppLabel = [[UILabel alloc] initWithFrame:
+                CGRectMake(CARD_PADDING + nameColW + typeColW + powColW + accColW,
+                           rowY, ppColW, moveRowHeight)];
+            ppLabel.text = pp ? [NSString stringWithFormat:@"%@", pp] : @"—";
+            ppLabel.font = [UIFont systemFontOfSize:11];
+            ppLabel.textColor = [UIColor darkTextColor];
+            ppLabel.textAlignment = NSTextAlignmentCenter;
+            ppLabel.backgroundColor = [UIColor clearColor];
+            [card addSubview:ppLabel];
+
+            rowY += moveRowHeight;
+        }
+    }
+
+    [self.scrollView addSubview:card];
+    return y + totalHeight + CARD_SPACING;
 }
 
 #pragma mark - Helpers

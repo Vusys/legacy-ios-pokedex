@@ -1,13 +1,14 @@
 #import <UIKit/UIKit.h>
 #import "PokemonListVC.h"
 #import "PokemonDetailVC.h"
+#import "MoveListVC.h"
+#import "MoveDetailVC.h"
 #import "DataManager.h"
 
 // ─── AppDelegate ────────────────────────────────────────────────────
 
 @interface AppDelegate : UIResponder <UIApplicationDelegate, UISplitViewControllerDelegate>
 @property (nonatomic, strong) UIWindow *window;
-@property (nonatomic, strong) UISplitViewController *splitVC;
 @end
 
 @implementation AppDelegate
@@ -17,31 +18,50 @@
 
     self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
 
-    // Master: Pokemon list
-    PokemonListVC *listVC = [[PokemonListVC alloc] init];
-    UINavigationController *masterNav = [[UINavigationController alloc]
-        initWithRootViewController:listVC];
+    // ─── Tab 1: Pokédex (split view) ────────────────────────
+    PokemonListVC *pokedexList = [[PokemonListVC alloc] init];
+    UINavigationController *pokedexMasterNav = [[UINavigationController alloc]
+        initWithRootViewController:pokedexList];
 
-    // Detail: Pokemon detail (start with #1 Bulbasaur)
-    PokemonDetailVC *detailVC = [[PokemonDetailVC alloc] init];
-    detailVC.pokemonID = 1;
-    UINavigationController *detailNav = [[UINavigationController alloc]
-        initWithRootViewController:detailVC];
+    PokemonDetailVC *pokedexDetail = [[PokemonDetailVC alloc] init];
+    pokedexDetail.pokemonID = 1;
+    UINavigationController *pokedexDetailNav = [[UINavigationController alloc]
+        initWithRootViewController:pokedexDetail];
 
-    // Split view
-    self.splitVC = [[UISplitViewController alloc] init];
-    self.splitVC.viewControllers = @[masterNav, detailNav];
-    self.splitVC.delegate = self;
+    UISplitViewController *pokedexSplit = [[UISplitViewController alloc] init];
+    pokedexSplit.viewControllers = @[pokedexMasterNav, pokedexDetailNav];
+    pokedexSplit.delegate = self;
+    pokedexSplit.title = @"Pokédex";
+    pokedexSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Pokédex"
+        image:nil tag:0];
 
-    // Give master a reference for updating detail
-    listVC.detailNavigationController = detailNav;
+    // ─── Tab 2: Moves (split view) ──────────────────────────
+    MoveListVC *moveList = [[MoveListVC alloc] init];
+    UINavigationController *moveMasterNav = [[UINavigationController alloc]
+        initWithRootViewController:moveList];
 
-    self.window.rootViewController = self.splitVC;
+    MoveDetailVC *moveDetail = [[MoveDetailVC alloc] init];
+    moveDetail.moveID = 1;
+    UINavigationController *moveDetailNav = [[UINavigationController alloc]
+        initWithRootViewController:moveDetail];
+
+    UISplitViewController *movesSplit = [[UISplitViewController alloc] init];
+    movesSplit.viewControllers = @[moveMasterNav, moveDetailNav];
+    movesSplit.delegate = self;
+    movesSplit.title = @"Moves";
+    movesSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Moves"
+        image:nil tag:1];
+
+    // ─── Tab Bar ────────────────────────────────────────────
+    UITabBarController *tabBar = [[UITabBarController alloc] init];
+    tabBar.viewControllers = @[pokedexSplit, movesSplit];
+
+    self.window.rootViewController = tabBar;
     [self.window makeKeyAndVisible];
     return YES;
 }
 
-// Always show the master pane
+// Always show the master pane in split views
 - (BOOL)splitViewController:(UISplitViewController *)svc
    shouldHideViewController:(UIViewController *)vc
               inOrientation:(UIInterfaceOrientation)orientation {

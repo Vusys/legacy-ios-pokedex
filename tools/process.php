@@ -9,6 +9,8 @@
  *   src/data/index.plist         - Lightweight array of all Pokemon (id, name, types)
  *   src/data/types.plist         - Type metadata with colors and damage relations
  *   src/data/pokemon/{id}.plist  - Full detail per Pokemon
+ *   src/data/moves/index.plist   - Lightweight array of all moves (id, name, type, power, etc.)
+ *   src/data/moves/{id}.plist    - Full detail per move
  *   src/sprites/{id}.png         - Front-default sprites (copied from cache)
  *
  * Usage: php tools/process.php
@@ -18,6 +20,7 @@ define('CACHE_DIR', __DIR__ . '/.cache');
 define('SRC_DIR', __DIR__ . '/../src');
 define('DATA_DIR', SRC_DIR . '/data');
 define('POKEMON_DIR', DATA_DIR . '/pokemon');
+define('MOVES_DIR', DATA_DIR . '/moves');
 define('SPRITES_SRC', CACHE_DIR . '/sprites');
 define('SPRITES_DST', SRC_DIR . '/sprites');
 
@@ -296,6 +299,53 @@ function get_english_genus(array $genera): string {
     return '';
 }
 
+/**
+ * Get the English effect text for a move, with $effect_chance replaced.
+ */
+function get_english_effect(array $entries, ?int $effectChance): string {
+    foreach ($entries as $e) {
+        if (($e['language']['name'] ?? '') === 'en') {
+            $text = $e['short_effect'] ?? $e['effect'] ?? '';
+            if ($effectChance !== null) {
+                $text = str_replace('$effect_chance', (string)$effectChance, $text);
+            }
+            return clean_flavor_text($text);
+        }
+    }
+    return '';
+}
+
+/**
+ * Get the first English flavor text for a move.
+ */
+function get_english_move_flavor(array $entries): string {
+    // Same version preference as Pokemon flavor text
+    $preferred = ['red-blue', 'yellow', 'gold-silver', 'crystal',
+                  'ruby-sapphire', 'emerald', 'firered-leafgreen',
+                  'diamond-pearl', 'platinum', 'heartgold-soulsilver',
+                  'black-white', 'black-2-white-2',
+                  'x-y', 'omega-ruby-alpha-sapphire',
+                  'sun-moon', 'ultra-sun-ultra-moon',
+                  'sword-shield', 'legends-arceus',
+                  'scarlet-violet'];
+
+    $englishEntries = array_filter($entries, fn($e) => ($e['language']['name'] ?? '') === 'en');
+
+    foreach ($preferred as $vg) {
+        foreach ($englishEntries as $entry) {
+            if (($entry['version_group']['name'] ?? '') === $vg) {
+                return clean_flavor_text($entry['flavor_text']);
+            }
+        }
+    }
+
+    foreach ($englishEntries as $entry) {
+        return clean_flavor_text($entry['flavor_text']);
+    }
+
+    return '';
+}
+
 // ─── Main Processing ────────────────────────────────────────────────
 
 function main(): void {
@@ -303,6 +353,7 @@ function main(): void {
 
     // Ensure output directories exist
     if (!is_dir(POKEMON_DIR)) mkdir(POKEMON_DIR, 0755, true);
+    if (!is_dir(MOVES_DIR)) mkdir(MOVES_DIR, 0755, true);
     if (!is_dir(SPRITES_DST)) mkdir(SPRITES_DST, 0755, true);
 
     // Determine how many species we have cached
@@ -334,6 +385,30 @@ function main(): void {
         }
     }
     echo "  Loaded " . count($chains) . " evolution chains.\n\n";
+
+    // Pre-load move summary data for enriching Pokemon move lists
+    echo "Building move lookup table...\n";
+    $moveFiles = glob(CACHE_DIR . '/moves/*.json');
+    $moveLookup = []; // keyed by move name (lowercase)
+    $moveIds = [];
+    foreach ($moveFiles as $f) {
+        $moveId = (int)basename($f, '.json');
+        if ($moveId <= 0) continue;
+        $moveIds[] = $moveId;
+        $moveJson = json_decode(file_get_contents($f), true);
+        if (!$moveJson) continue;
+        $moveName = $moveJson['name'] ?? '';
+        $moveLookup[$moveName] = [
+            'id' => $moveId,
+            'type' => $moveJson['type']['name'] ?? '',
+            'power' => $moveJson['power'],
+            'accuracy' => $moveJson['accuracy'],
+            'pp' => $moveJson['pp'],
+            'damage_class' => $moveJson['damage_class']['name'] ?? '',
+        ];
+    }
+    sort($moveIds);
+    echo "  Loaded " . count($moveLookup) . " moves into lookup.\n\n";
 
     // Process each Pokemon
     echo "--- Processing Pokemon ---\n";
@@ -392,21 +467,34 @@ function main(): void {
         $flavorText = get_english_flavor_text($speciesData['flavor_text_entries'] ?? []);
         $genus = get_english_genus($speciesData['genera'] ?? []);
 
-        // Extract moves (all moves with learn methods)
+        // Extract moves (enriched with type/power/accuracy from move lookup)
         $moves = [];
         foreach ($pokemonData['moves'] ?? [] as $moveEntry) {
-            $moveName = title_case_name($moveEntry['move']['name'] ?? '');
-            // Get the most recent version group detail
+            $moveRawName = $moveEntry['move']['name'] ?? '';
+            $moveName = title_case_name($moveRawName);
             $versionDetails = $moveEntry['version_group_details'] ?? [];
             if (empty($versionDetails)) continue;
 
-            // Take the last (most recent) version group entry
             $detail = end($versionDetails);
-            $moves[] = [
+            $moveInfo = $moveLookup[$moveRawName] ?? null;
+
+            $moveData = [
                 'name' => $moveName,
                 'level' => $detail['level_learned_at'] ?? 0,
                 'method' => $detail['move_learn_method']['name'] ?? 'unknown',
             ];
+
+            // Enrich with move details if available
+            if ($moveInfo) {
+                $moveData['move_id'] = $moveInfo['id'];
+                $moveData['type'] = $moveInfo['type'];
+                $moveData['power'] = $moveInfo['power'];
+                $moveData['accuracy'] = $moveInfo['accuracy'];
+                $moveData['pp'] = $moveInfo['pp'];
+                $moveData['damage_class'] = $moveInfo['damage_class'];
+            }
+
+            $moves[] = $moveData;
         }
 
         // Sort moves: level-up by level, then others alphabetically
@@ -513,10 +601,133 @@ function main(): void {
     }
     echo "  Copied {$copiedSprites} sprites.\n\n";
 
+    // Process moves
+    echo "--- Processing Moves ---\n";
+    $movesIndex = [];
+    $processedMoves = 0;
+
+    foreach ($moveIds as $moveId) {
+        $moveJson = read_cached_json('moves', (string)$moveId);
+        if ($moveJson === null) continue;
+
+        $moveName = title_case_name($moveJson['name'] ?? '');
+        $moveType = $moveJson['type']['name'] ?? '';
+        $power = $moveJson['power'];
+        $accuracy = $moveJson['accuracy'];
+        $pp = $moveJson['pp'];
+        $damageClass = $moveJson['damage_class']['name'] ?? '';
+        $effectChance = $moveJson['effect_chance'] ?? null;
+        $priority = $moveJson['priority'] ?? 0;
+        $generation = $moveJson['generation']['name'] ?? '';
+
+        // Effect description
+        $effect = get_english_effect($moveJson['effect_entries'] ?? [], $effectChance);
+        $flavorText = get_english_move_flavor($moveJson['flavor_text_entries'] ?? []);
+
+        // Target
+        $target = $moveJson['target']['name'] ?? '';
+
+        // Meta (additional battle details)
+        $meta = $moveJson['meta'] ?? null;
+        $metaData = [];
+        if ($meta) {
+            if (isset($meta['ailment']['name']) && $meta['ailment']['name'] !== 'none') {
+                $metaData['ailment'] = title_case_name($meta['ailment']['name']);
+                $metaData['ailment_chance'] = $meta['ailment_chance'] ?? 0;
+            }
+            if (($meta['min_hits'] ?? null) !== null && ($meta['max_hits'] ?? null) !== null
+                && ($meta['min_hits'] > 0 || $meta['max_hits'] > 0)) {
+                $metaData['min_hits'] = $meta['min_hits'];
+                $metaData['max_hits'] = $meta['max_hits'];
+            }
+            if (($meta['drain'] ?? 0) != 0) {
+                $metaData['drain'] = $meta['drain'];
+            }
+            if (($meta['healing'] ?? 0) != 0) {
+                $metaData['healing'] = $meta['healing'];
+            }
+            if (($meta['crit_rate'] ?? 0) != 0) {
+                $metaData['crit_rate'] = $meta['crit_rate'];
+            }
+            if (($meta['flinch_chance'] ?? 0) != 0) {
+                $metaData['flinch_chance'] = $meta['flinch_chance'];
+            }
+            if (($meta['stat_chance'] ?? 0) != 0) {
+                $metaData['stat_chance'] = $meta['stat_chance'];
+            }
+        }
+
+        // Stat changes
+        $statChanges = [];
+        foreach ($moveJson['stat_changes'] ?? [] as $sc) {
+            $statChanges[] = [
+                'stat' => $sc['stat']['name'] ?? '',
+                'change' => $sc['change'] ?? 0,
+            ];
+        }
+
+        // Which Pokemon learn this move
+        $learnedBy = [];
+        foreach ($moveJson['learned_by_pokemon'] ?? [] as $lbp) {
+            $pokemonUrl = $lbp['url'] ?? '';
+            if (preg_match('/pokemon\/(\d+)/', $pokemonUrl, $m)) {
+                $learnedBy[] = (int)$m[1];
+            }
+        }
+        sort($learnedBy);
+
+        // Full move detail
+        $moveDetail = [
+            'id' => $moveId,
+            'name' => $moveName,
+            'type' => $moveType,
+            'power' => $power,
+            'accuracy' => $accuracy,
+            'pp' => $pp,
+            'damage_class' => $damageClass,
+            'priority' => $priority,
+            'generation' => $generation,
+            'effect' => $effect,
+            'flavor_text' => $flavorText,
+            'target' => $target,
+            'learned_by' => $learnedBy,
+        ];
+        if (!empty($metaData)) {
+            $moveDetail['meta'] = $metaData;
+        }
+        if (!empty($statChanges)) {
+            $moveDetail['stat_changes'] = $statChanges;
+        }
+
+        write_plist(MOVES_DIR . "/{$moveId}.plist", $moveDetail);
+
+        // Lightweight index entry
+        $movesIndex[] = [
+            'id' => $moveId,
+            'name' => $moveName,
+            'type' => $moveType,
+            'power' => $power,
+            'accuracy' => $accuracy,
+            'pp' => $pp,
+            'damage_class' => $damageClass,
+        ];
+
+        $processedMoves++;
+        if ($processedMoves % 100 === 0 || $processedMoves === count($moveIds)) {
+            echo "  Moves: {$processedMoves}/" . count($moveIds) . "\n";
+        }
+    }
+
+    // Write moves index
+    echo "Writing moves/index.plist ({$processedMoves} entries)...\n";
+    write_plist(MOVES_DIR . '/index.plist', $movesIndex);
+    echo "\n";
+
     echo "=== Processing Complete ===\n";
-    echo "  Index:    " . DATA_DIR . "/index.plist ({$processed} entries)\n";
+    echo "  Index:    " . DATA_DIR . "/index.plist ({$processed} Pokemon)\n";
     echo "  Types:    " . DATA_DIR . "/types.plist (" . count($typesData) . " types)\n";
     echo "  Pokemon:  " . POKEMON_DIR . "/ ({$processed} plists)\n";
+    echo "  Moves:    " . MOVES_DIR . "/ ({$processedMoves} plists)\n";
     echo "  Sprites:  " . SPRITES_DST . "/ ({$copiedSprites} PNGs)\n";
 }
 

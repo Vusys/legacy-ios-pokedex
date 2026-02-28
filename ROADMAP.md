@@ -1,40 +1,19 @@
 # Pokédex Roadmap
 
-## Phase 1: Tab Bar + Moves Database
+## Phase 1: Tab Bar + Moves Database ✓
 
 Restructure the app from a single split view into a tab bar with multiple sections.
 
-### Tab Bar Structure
+**Status: Complete**
 
-- **Pokédex** — the current split view (Pokémon list + detail)
-- **Moves** — searchable/filterable move database
-- **Types** — type effectiveness chart
+### What was built
 
-### Moves Tab
-
-New data to fetch and process:
-
-- **Endpoint**: `/api/v2/move/{id}` (~900 moves)
-- **Fields**: name, type, power, accuracy, PP, damage class (physical/special/status), effect description, flavor text, generation introduced, learned-by Pokémon list
-- **Endpoint**: `/api/v2/move-damage-class/{id}` — physical, special, status icons/labels
-
-UI: split view mirroring the Pokédex tab. Master list shows move name, type badge, power/accuracy. Detail view shows full info + which Pokémon learn it.
-
-### Pokémon Detail: Move List Section
-
-Add a "Moves" card to the existing detail view, organized by learn method:
-
-- **Level-up** — sorted by level, shows level number
-- **TM/HM** — sorted by machine number
-- **Egg Moves** — alphabetical
-- **Tutor Moves** — alphabetical
-
-Each row: move name, type badge, power, accuracy, PP.
-
-### Data Pipeline Changes
-
-- `fetch.php`: add loop for `/api/v2/move/{id}` (1–900), cache to `tools/.cache/moves/`
-- `process.php`: generate `src/data/moves/index.plist` (lightweight) and `src/data/moves/{id}.plist` (detail)
+- **UITabBarController** with two tabs: Pokédex and Moves, each containing its own UISplitViewController
+- **Moves tab**: searchable master list (MoveListVC) with type badge, damage class, power/accuracy/PP columns + detail view (MoveDetailVC) with effect text, stats, battle effects, and "Learned By" Pokémon list with mini sprites
+- **Pokémon detail**: added Moves card section showing moves grouped by learn method (Level-Up, TM/HM, Egg, Tutor) with type badges and stats columns
+- **Data pipeline**: fetch.php downloads all ~937 moves (handles non-sequential IDs: 1-919 + 10001-10018) and move-damage-class data; process.php generates `moves/index.plist` and individual `moves/{id}.plist` files
+- **New files**: Move.h/.m, MoveCell.h/.m, MoveListVC.h/.m, MoveDetailVC.h/.m
+- **Modified**: main.m (tab bar), DataManager (move queries), PokemonDetailVC (moves card), fetch.php, process.php
 
 ---
 
@@ -193,7 +172,7 @@ Evolution chain data is already in each Pokémon's plist (the `evolution_chain` 
 
 | Phase | Feature | New Data | New Images | Effort |
 |-------|---------|----------|------------|--------|
-| 1 | Tab bar + Moves | ~900 moves | — | Large |
+| 1 | Tab bar + Moves | ~937 moves | — | **Done** |
 | 2 | Filters + search | Add legendary/mythical flags | — | Medium |
 | 3 | Additional images | — | Artwork, shiny, back, historical | Medium |
 | 4 | Type chart | — | — | Medium |

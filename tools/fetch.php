@@ -6,6 +6,8 @@
  *   - All Pokemon data (/api/v2/pokemon/{id})
  *   - All Species data (/api/v2/pokemon-species/{id})
  *   - All Type data (/api/v2/type/{id})
+ *   - All Move data (/api/v2/move/{id})
+ *   - Move damage classes (/api/v2/move-damage-class/{id})
  *   - Evolution chains (discovered from species data)
  *   - Front-default sprite PNGs
  *
@@ -92,7 +94,7 @@ function main(): void {
     echo "=== PokeAPI Fetcher ===\n\n";
 
     // Ensure cache directories exist
-    foreach (['pokemon', 'species', 'types', 'evolution-chains', 'sprites'] as $dir) {
+    foreach (['pokemon', 'species', 'types', 'moves', 'move-damage-class', 'evolution-chains', 'sprites'] as $dir) {
         $path = CACHE_DIR . '/' . $dir;
         if (!is_dir($path)) mkdir($path, 0755, true);
     }
@@ -177,7 +179,58 @@ function main(): void {
     }
     echo "\n";
 
-    // Step 5: Fetch evolution chains
+    // Step 5: Fetch all Move data
+    // Move IDs are NOT sequential (1-919, then 10001-10018), so we fetch
+    // the full list from the API first to discover actual IDs.
+    echo "Fetching move list to discover IDs...\n";
+    $moveListData = fetch_json(BASE_URL . '/move?limit=10000');
+    $totalMoves = $moveListData['count'] ?? 0;
+    $moveIds = [];
+    foreach (($moveListData['results'] ?? []) as $entry) {
+        // Extract ID from URL like "https://pokeapi.co/api/v2/move/10001/"
+        if (preg_match('/\/move\/(\d+)\/?$/', $entry['url'], $m)) {
+            $moveIds[] = (int)$m[1];
+        }
+    }
+    sort($moveIds);
+    echo "Total moves: {$totalMoves} (IDs discovered: " . count($moveIds) . ")\n\n";
+
+    echo "--- Fetching Move data ---\n";
+    $fetchedMoves = 0;
+    $skippedMoves = 0;
+    $processedMoves = 0;
+    foreach ($moveIds as $id) {
+        $processedMoves++;
+        if (is_cached('moves', (string)$id)) {
+            $skippedMoves++;
+        } else {
+            $data = fetch_json_cached('moves', (string)$id, BASE_URL . "/move/{$id}");
+            if ($data === null) {
+                echo "  WARN: Failed to fetch move/{$id}, skipping\n";
+            }
+            $fetchedMoves++;
+        }
+
+        if ($processedMoves % 100 === 0 || $processedMoves === count($moveIds)) {
+            echo "  Moves: {$processedMoves}/" . count($moveIds) . " (fetched: {$fetchedMoves}, cached: {$skippedMoves})\n";
+        }
+    }
+    echo "\n";
+
+    // Step 6: Fetch move damage classes (physical, special, status)
+    echo "--- Fetching Move Damage Classes ---\n";
+    for ($id = 1; $id <= 3; $id++) {
+        $classData = fetch_json_cached('move-damage-class', (string)$id, BASE_URL . "/move-damage-class/{$id}");
+        if ($classData === null) {
+            echo "  WARN: Failed to fetch move-damage-class/{$id}\n";
+        } else {
+            $name = $classData['name'] ?? '?';
+            echo "  {$id}: {$name}\n";
+        }
+    }
+    echo "\n";
+
+    // Step 7: Fetch evolution chains
     echo "--- Fetching Evolution Chains ---\n";
     $totalChains = count($evolutionChainUrls);
     $chainCount = 0;
@@ -236,6 +289,7 @@ function main(): void {
     echo "  Pokemon:   {$totalSpecies} entries\n";
     echo "  Species:   {$totalSpecies} entries\n";
     echo "  Types:     18 entries\n";
+    echo "  Moves:     {$totalMoves} entries\n";
     echo "  Chains:    {$totalChains} entries\n";
     echo "  Sprites:   " . ($fetchedSprites + $skippedSprites) . " downloaded, {$missingSprites} missing\n";
     echo "  Cache dir: " . realpath(CACHE_DIR) . "\n\n";
