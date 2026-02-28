@@ -17,26 +17,32 @@ Restructure the app from a single split view into a tab bar with multiple sectio
 
 ---
 
-## Phase 2: Filters and Search Improvements
+## Phase 2: Filters and Search Improvements ✓
 
-### Pokédex Filters
+**Status: Complete**
 
-Add a filter button in the master list nav bar that opens a `UIPopoverController` with:
+### What was built
 
-- **Type filter** — grid of type badges, tap to toggle (multi-select). Show only Pokémon matching selected types.
-- **Generation filter** — list of Gen I through Gen IX, tap to toggle
-- **Sort by** — number (default), name (A-Z), stat totals (high-low)
-- **Category filter** — legendary, mythical, baby (using `is_legendary`, `is_mythical`, `is_baby` from species data — needs adding to process.php)
+- **Filter popover** (FilterPopoverVC) presented from nav bar button on both tabs via UIPopoverController
+  - Sort segmented control: Number / Name / Stat Total (Pokémon) or Number / Name / Power (Moves)
+  - Type grid: 18 type buttons with colored backgrounds, tap to toggle, selected = full alpha + white border
+  - Generation grid: Gen I–IX toggle buttons
+  - Category toggles: Legendary / Mythical / Baby (Pokémon) or Physical / Special / Status (Moves)
+  - Reset + Apply bottom bar; works on a copy of FilterState (cancel = no changes)
+- **FilterState model** (NSCopying) holding selectedTypes, selectedGenerations, selectedCategories, sortBy
+- **Enhanced DataManager** with `searchPokemonWithQuery:types:generations:categories:sortBy:` and `searchMovesWithQuery:types:generations:damageClasses:sortBy:` — filter logic is AND between groups, OR within groups
+- **Pokédex number search**: typing "025" or "25" finds Pikachu (prefix match on raw and zero-padded formats)
+- **Filter button badge**: shows "Filter (N)" when N filters are active
+- **Data pipeline**: `process.php` enriched Pokémon index with `generation`, `stat_total`, `is_legendary`, `is_mythical`, `is_baby`; Moves index with `generation`
+- **New files**: FilterState.h/.m, FilterPopoverVC.h/.m
+- **Modified**: DataManager.h/.m, PokemonListVC.h/.m, MoveListVC.h/.m, process.php
 
-### Search Improvements
+### Performance fixes
 
-- Search should match Pokédex number (typing "025" finds Pikachu)
-- Search in the Moves tab by move name
-- Search across tabs via a top-level search bar
-
-### Data Pipeline Changes
-
-- `process.php`: add `is_legendary`, `is_mythical`, `is_baby` boolean fields to each Pokémon plist and to `index.plist` entries
+- **Shared sprite cache** (NSCache, 200-entry limit) in DataManager — eliminates ~3-5ms disk re-read per cell on scroll, used by PokemonCell, Pokemon.spriteImage, and MoveDetailVC learnedBy card
+- **Moves card capped** to 10 rows per section with "...and X more" — reduced label creation from 400-800 to ~60, moves card build time from 116-203ms to 48-62ms
+- **Total detail layout** improved from ~150-234ms to ~74-96ms
+- **[PERF] logging** throughout: detail view layout (per-card breakdown), plist loading, search/filter queries
 
 ---
 
@@ -168,14 +174,54 @@ Evolution chain data is already in each Pokémon's plist (the `evolution_chain` 
 
 ---
 
+## Phase 8: Natures, Egg Groups + Berries
+
+Three additional reference databases to round out the Pokédex.
+
+### Natures Tab
+
+- **Endpoint**: `/api/v2/nature/{id}` (25 natures)
+- **Fields**: name, increased stat (+10%), decreased stat (-10%), favorite/disliked flavor
+- Display as a grid/table: Nature → boosted stat → reduced stat → flavor preference
+- Color-code stat changes (green for boost, red for reduction)
+- 5 neutral natures (Hardy, Docile, Serious, Bashful, Quirky) where both stats are the same
+- Small dataset — could be a single scrollable screen rather than master/detail
+
+### Egg Groups Browser
+
+- **Endpoint**: `/api/v2/egg-group/{id}` (15 egg groups)
+- **Fields**: name, list of Pokémon species in the group
+- **Groups**: Monster, Water 1, Water 2, Water 3, Bug, Flying, Field, Fairy, Grass, Human-Like, Mineral, Amorphous, Ditto, Dragon, Undiscovered
+- Master list of egg groups → tap to see all compatible Pokémon with sprites
+- Note: Pokémon can belong to multiple egg groups (e.g., Bulbasaur is Monster + Grass)
+- Egg group data already exists in individual Pokémon plists (`egg_groups` field) — could add a section to Pokémon detail view linking to egg group pages
+- "Undiscovered" group contains legendaries/mythicals/baby Pokémon that cannot breed
+
+### Berries Database
+
+- **Endpoint**: `/api/v2/berry/{id}` (~64 berries)
+- **Fields**: name, growth time, max harvest, size, smoothness, soil dryness, firmness, natural gift power/type, flavors (spicy/dry/sweet/bitter/sour potency values)
+- **Berry sprites**: available via the items endpoint (`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/{name}-berry.png`)
+- Searchable master list with berry sprite, name, and natural gift type badge
+- Detail view showing growth stats, flavor profile (could visualize as a radar/bar chart), natural gift info, and game effect description
+- **Firmness categories**: very soft, soft, hard, very hard, super hard
+
+### Data Pipeline Changes
+
+- `fetch.php`: download nature, egg group, and berry data from PokeAPI
+- `process.php`: generate `natures.plist`, `egg-groups/index.plist`, `egg-groups/{id}.plist`, `berries/index.plist`, `berries/{id}.plist`, and berry sprites
+
+---
+
 ## Phase Summary
 
 | Phase | Feature | New Data | New Images | Effort |
 |-------|---------|----------|------------|--------|
 | 1 | Tab bar + Moves | ~937 moves | — | **Done** |
-| 2 | Filters + search | Add legendary/mythical flags | — | Medium |
+| 2 | Filters + search + perf | Add legendary/mythical flags | — | **Done** |
 | 3 | Additional images | — | Artwork, shiny, back, historical | Medium |
 | 4 | Type chart | — | — | Medium |
 | 5 | Evolution chains | — (data exists) | — | Small |
 | 6 | Abilities + Items | ~300 abilities, ~2000 items | ~2000 item sprites | Large |
 | 7 | Audio + polish | ~1025 cries | — | Medium |
+| 8 | Natures, Egg Groups + Berries | 25 natures, 15 egg groups, ~64 berries | ~64 berry sprites | Medium |
