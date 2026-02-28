@@ -56,11 +56,84 @@
 }
 
 - (NSArray *)searchPokemonWithName:(NSString *)query {
-    if (!query || query.length == 0) return [self allPokemonSummaries];
+    return [self searchPokemonWithQuery:query types:nil generations:nil
+                             categories:nil sortBy:@"number"];
+}
 
-    NSPredicate *predicate = [NSPredicate predicateWithFormat:
-        @"name CONTAINS[cd] %@", query];
-    return [[self allPokemonSummaries] filteredArrayUsingPredicate:predicate];
+- (NSArray *)searchPokemonWithQuery:(NSString *)query
+                              types:(NSSet *)types
+                        generations:(NSSet *)generations
+                         categories:(NSSet *)categories
+                             sortBy:(NSString *)sortBy {
+    NSArray *results = [self allPokemonSummaries];
+
+    // Filter by types (OR within group)
+    if (types.count > 0) {
+        results = [results filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+                NSArray *entryTypes = entry[@"types"];
+                for (NSString *t in entryTypes) {
+                    if ([types containsObject:t]) return YES;
+                }
+                return NO;
+            }]];
+    }
+
+    // Filter by generations (OR within group)
+    if (generations.count > 0) {
+        results = [results filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+                return [generations containsObject:entry[@"generation"]];
+            }]];
+    }
+
+    // Filter by categories (OR within group): legendary, mythical, baby
+    if (categories.count > 0) {
+        results = [results filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+                if ([categories containsObject:@"legendary"] &&
+                    [entry[@"is_legendary"] boolValue]) return YES;
+                if ([categories containsObject:@"mythical"] &&
+                    [entry[@"is_mythical"] boolValue]) return YES;
+                if ([categories containsObject:@"baby"] &&
+                    [entry[@"is_baby"] boolValue]) return YES;
+                return NO;
+            }]];
+    }
+
+    // Search query: match name (substring) OR Pokedex number (prefix)
+    if (query.length > 0) {
+        NSString *lowerQuery = [query lowercaseString];
+        results = [results filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+                // Name match
+                NSString *name = [entry[@"name"] lowercaseString];
+                if ([name rangeOfString:lowerQuery].location != NSNotFound) return YES;
+
+                // Number match: "25" matches #25, "025" matches #25
+                NSInteger entryID = [entry[@"id"] integerValue];
+                NSString *rawNumber = [NSString stringWithFormat:@"%ld", (long)entryID];
+                NSString *paddedNumber = [NSString stringWithFormat:@"%03ld", (long)entryID];
+                if ([rawNumber hasPrefix:lowerQuery] ||
+                    [paddedNumber hasPrefix:lowerQuery]) return YES;
+
+                return NO;
+            }]];
+    }
+
+    // Sort
+    if ([sortBy isEqualToString:@"name"]) {
+        results = [results sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+            return [a[@"name"] compare:b[@"name"] options:NSCaseInsensitiveSearch];
+        }];
+    } else if ([sortBy isEqualToString:@"stat_total"]) {
+        results = [results sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+            return [b[@"stat_total"] compare:a[@"stat_total"]]; // Descending
+        }];
+    }
+    // Default "number" sort is already in plist order (by id)
+
+    return results;
 }
 
 #pragma mark - Pokemon Detail
@@ -110,11 +183,72 @@
 }
 
 - (NSArray *)searchMovesWithName:(NSString *)query {
-    if (!query || query.length == 0) return [self allMoveSummaries];
+    return [self searchMovesWithQuery:query types:nil generations:nil
+                        damageClasses:nil sortBy:@"number"];
+}
 
-    NSPredicate *predicate = [NSPredicate predicateWithFormat:
-        @"name CONTAINS[cd] %@", query];
-    return [[self allMoveSummaries] filteredArrayUsingPredicate:predicate];
+- (NSArray *)searchMovesWithQuery:(NSString *)query
+                            types:(NSSet *)types
+                      generations:(NSSet *)generations
+                    damageClasses:(NSSet *)damageClasses
+                           sortBy:(NSString *)sortBy {
+    NSArray *results = [self allMoveSummaries];
+
+    // Filter by types (OR within group)
+    if (types.count > 0) {
+        results = [results filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+                return [types containsObject:entry[@"type"]];
+            }]];
+    }
+
+    // Filter by generations (OR within group)
+    if (generations.count > 0) {
+        results = [results filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+                return [generations containsObject:entry[@"generation"]];
+            }]];
+    }
+
+    // Filter by damage classes (OR within group)
+    if (damageClasses.count > 0) {
+        results = [results filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+                return [damageClasses containsObject:entry[@"damage_class"]];
+            }]];
+    }
+
+    // Search query: match name (substring, case-insensitive)
+    if (query.length > 0) {
+        NSString *lowerQuery = [query lowercaseString];
+        results = [results filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+                NSString *name = [entry[@"name"] lowercaseString];
+                return [name rangeOfString:lowerQuery].location != NSNotFound;
+            }]];
+    }
+
+    // Sort
+    if ([sortBy isEqualToString:@"name"]) {
+        results = [results sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+            return [a[@"name"] compare:b[@"name"] options:NSCaseInsensitiveSearch];
+        }];
+    } else if ([sortBy isEqualToString:@"power"]) {
+        results = [results sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+            // Nil/null power goes to end
+            NSInteger pa = [a[@"power"] isKindOfClass:[NSNumber class]] ? [a[@"power"] integerValue] : 0;
+            NSInteger pb = [b[@"power"] isKindOfClass:[NSNumber class]] ? [b[@"power"] integerValue] : 0;
+            if (pa == 0 && pb == 0) return NSOrderedSame;
+            if (pa == 0) return NSOrderedDescending;
+            if (pb == 0) return NSOrderedAscending;
+            if (pb > pa) return NSOrderedDescending;
+            if (pb < pa) return NSOrderedAscending;
+            return NSOrderedSame;
+        }];
+    }
+    // Default "number" sort is already in plist order (by id)
+
+    return results;
 }
 
 #pragma mark - Move Detail

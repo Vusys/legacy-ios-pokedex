@@ -1,6 +1,7 @@
 #import <UIKit/UIKit.h>
+#import "FilterPopoverVC.h"
 
-@interface PokemonListVC : UITableViewController
+@interface PokemonListVC : UITableViewController <FilterPopoverDelegate>
 
 @property (nonatomic, weak) UINavigationController *detailNavigationController;
 

@@ -2,6 +2,8 @@
 #import "MoveCell.h"
 #import "MoveDetailVC.h"
 #import "DataManager.h"
+#import "FilterState.h"
+#import "FilterPopoverVC.h"
 #import <QuartzCore/QuartzCore.h>
 
 #define MOVE_CELL_HEIGHT 50
@@ -9,8 +11,12 @@
 
 @interface MoveListVC () <UISearchDisplayDelegate, UISearchBarDelegate>
 @property (nonatomic, strong) NSArray *allMoves;
+@property (nonatomic, strong) NSArray *displayedMoves;
 @property (nonatomic, strong) NSArray *filteredMoves;
 @property (nonatomic, strong) UISearchDisplayController *searchDC;
+@property (nonatomic, strong) FilterState *filterState;
+@property (nonatomic, strong) UIPopoverController *filterPopover;
+@property (nonatomic, strong) UIBarButtonItem *filterButton;
 @end
 
 @implementation MoveListVC
@@ -19,27 +25,40 @@
     [super viewDidLoad];
 
     self.title = @"Moves";
+    self.filterState = [[FilterState alloc] init];
     self.allMoves = [[DataManager sharedManager] allMoveSummaries];
+    self.displayedMoves = self.allMoves;
     self.filteredMoves = @[];
 
     [self styleNavBar];
+
+    // Filter button in nav bar
+    _filterButton = [[UIBarButtonItem alloc]
+        initWithTitle:@"Filter"
+                style:UIBarButtonItemStyleBordered
+               target:self
+               action:@selector(showFilterPopover:)];
+    self.navigationItem.rightBarButtonItem = _filterButton;
 
     // Column headers
     UIView *headerWrapper = [[UIView alloc] initWithFrame:
         CGRectMake(0, 0, self.view.bounds.size.width, 44 + 24)];
     headerWrapper.backgroundColor = [UIColor clearColor];
+    headerWrapper.autoresizingMask = UIViewAutoresizingFlexibleWidth;
 
     // Search bar
     UISearchBar *searchBar = [[UISearchBar alloc]
         initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 44)];
     searchBar.placeholder = @"Search Moves";
     searchBar.delegate = self;
+    searchBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     [headerWrapper addSubview:searchBar];
 
     // Column labels
     UIView *colBar = [[UIView alloc] initWithFrame:
         CGRectMake(0, 44, self.view.bounds.size.width, 24)];
     colBar.backgroundColor = [UIColor colorWithWhite:0.93 alpha:1];
+    colBar.clipsToBounds = YES;
 
     CGFloat statsRight = self.view.bounds.size.width - 8;
     CGFloat statColW = 44;
@@ -102,13 +121,64 @@
     };
 }
 
+#pragma mark - Filter
+
+- (void)showFilterPopover:(UIBarButtonItem *)sender {
+    if (_filterPopover && _filterPopover.isPopoverVisible) {
+        [_filterPopover dismissPopoverAnimated:YES];
+        return;
+    }
+
+    FilterPopoverVC *filterVC = [[FilterPopoverVC alloc] init];
+    filterVC.filterState = [_filterState copy];
+    filterVC.movesMode = YES;
+    filterVC.delegate = self;
+
+    _filterPopover = [[UIPopoverController alloc] initWithContentViewController:filterVC];
+    [_filterPopover presentPopoverFromBarButtonItem:sender
+                           permittedArrowDirections:UIPopoverArrowDirectionAny
+                                           animated:YES];
+}
+
+- (void)filterPopoverDidApply:(FilterState *)filterState {
+    self.filterState = filterState;
+    [_filterPopover dismissPopoverAnimated:YES];
+    [self recomputeDisplayedMoves];
+    [self updateFilterButtonTitle];
+    [self.tableView reloadData];
+}
+
+- (void)recomputeDisplayedMoves {
+    if (![_filterState hasActiveFilters] &&
+        [_filterState.sortBy isEqualToString:@"number"]) {
+        self.displayedMoves = self.allMoves;
+    } else {
+        self.displayedMoves = [[DataManager sharedManager]
+            searchMovesWithQuery:nil
+                           types:_filterState.selectedTypes
+                     generations:_filterState.selectedGenerations
+                   damageClasses:_filterState.selectedCategories
+                          sortBy:_filterState.sortBy];
+    }
+}
+
+- (void)updateFilterButtonTitle {
+    NSUInteger count = [_filterState activeFilterCount];
+    if (count > 0) {
+        _filterButton.title = [NSString stringWithFormat:@"Filter (%lu)",
+                               (unsigned long)count];
+    } else {
+        _filterButton.title = @"Filter";
+    }
+}
+
 #pragma mark - UITableViewDataSource
 
 - (NSArray *)movesForTableView:(UITableView *)tableView {
     if (tableView == self.searchDisplayController.searchResultsTableView) {
         return self.filteredMoves;
     }
-    return self.allMoves;
+    return self.displayedMoves;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
@@ -165,7 +235,11 @@
 - (BOOL)searchDisplayController:(UISearchDisplayController *)controller
     shouldReloadTableForSearchString:(NSString *)searchString {
     self.filteredMoves = [[DataManager sharedManager]
-        searchMovesWithName:searchString];
+        searchMovesWithQuery:searchString
+                       types:_filterState.selectedTypes
+                 generations:_filterState.selectedGenerations
+               damageClasses:_filterState.selectedCategories
+                      sortBy:_filterState.sortBy];
     return YES;
 }
 

@@ -541,11 +541,22 @@ function main(): void {
         // Write detail plist
         write_plist(POKEMON_DIR . "/{$id}.plist", $detail);
 
+        // Compute stat total
+        $statTotal = 0;
+        foreach ($stats as $val) {
+            $statTotal += $val;
+        }
+
         // Add to index (lightweight)
         $index[] = [
             'id' => $id,
             'name' => $name,
             'types' => $types,
+            'generation' => $speciesData['generation']['name'] ?? '',
+            'stat_total' => $statTotal,
+            'is_legendary' => $speciesData['is_legendary'] ?? false,
+            'is_mythical' => $speciesData['is_mythical'] ?? false,
+            'is_baby' => $speciesData['is_baby'] ?? false,
         ];
 
         $processed++;
@@ -710,6 +721,7 @@ function main(): void {
             'accuracy' => $accuracy,
             'pp' => $pp,
             'damage_class' => $damageClass,
+            'generation' => $generation,
         ];
 
         $processedMoves++;

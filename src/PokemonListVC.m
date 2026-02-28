@@ -2,6 +2,8 @@
 #import "PokemonCell.h"
 #import "PokemonDetailVC.h"
 #import "DataManager.h"
+#import "FilterState.h"
+#import "FilterPopoverVC.h"
 #import <QuartzCore/QuartzCore.h>
 
 #define CELL_HEIGHT 64
@@ -9,8 +11,12 @@
 
 @interface PokemonListVC () <UISearchDisplayDelegate, UISearchBarDelegate>
 @property (nonatomic, strong) NSArray *allPokemon;
+@property (nonatomic, strong) NSArray *displayedPokemon;
 @property (nonatomic, strong) NSArray *filteredPokemon;
 @property (nonatomic, strong) UISearchDisplayController *searchDC;
+@property (nonatomic, strong) FilterState *filterState;
+@property (nonatomic, strong) UIPopoverController *filterPopover;
+@property (nonatomic, strong) UIBarButtonItem *filterButton;
 @end
 
 @implementation PokemonListVC
@@ -19,17 +25,28 @@
     [super viewDidLoad];
 
     self.title = @"Pokédex";
+    self.filterState = [[FilterState alloc] init];
     self.allPokemon = [[DataManager sharedManager] allPokemonSummaries];
+    self.displayedPokemon = self.allPokemon;
     self.filteredPokemon = @[];
 
     // Nav bar styling: red gradient
     [self styleNavBar];
+
+    // Filter button in nav bar
+    _filterButton = [[UIBarButtonItem alloc]
+        initWithTitle:@"Filter"
+                style:UIBarButtonItemStyleBordered
+               target:self
+               action:@selector(showFilterPopover:)];
+    self.navigationItem.rightBarButtonItem = _filterButton;
 
     // Search bar
     UISearchBar *searchBar = [[UISearchBar alloc]
         initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 44)];
     searchBar.placeholder = @"Search Pokémon";
     searchBar.delegate = self;
+    searchBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     self.tableView.tableHeaderView = searchBar;
 
     self.searchDC = [[UISearchDisplayController alloc]
@@ -70,13 +87,64 @@
     };
 }
 
+#pragma mark - Filter
+
+- (void)showFilterPopover:(UIBarButtonItem *)sender {
+    if (_filterPopover && _filterPopover.isPopoverVisible) {
+        [_filterPopover dismissPopoverAnimated:YES];
+        return;
+    }
+
+    FilterPopoverVC *filterVC = [[FilterPopoverVC alloc] init];
+    filterVC.filterState = [_filterState copy];
+    filterVC.movesMode = NO;
+    filterVC.delegate = self;
+
+    _filterPopover = [[UIPopoverController alloc] initWithContentViewController:filterVC];
+    [_filterPopover presentPopoverFromBarButtonItem:sender
+                           permittedArrowDirections:UIPopoverArrowDirectionAny
+                                           animated:YES];
+}
+
+- (void)filterPopoverDidApply:(FilterState *)filterState {
+    self.filterState = filterState;
+    [_filterPopover dismissPopoverAnimated:YES];
+    [self recomputeDisplayedPokemon];
+    [self updateFilterButtonTitle];
+    [self.tableView reloadData];
+}
+
+- (void)recomputeDisplayedPokemon {
+    if (![_filterState hasActiveFilters] &&
+        [_filterState.sortBy isEqualToString:@"number"]) {
+        self.displayedPokemon = self.allPokemon;
+    } else {
+        self.displayedPokemon = [[DataManager sharedManager]
+            searchPokemonWithQuery:nil
+                             types:_filterState.selectedTypes
+                       generations:_filterState.selectedGenerations
+                        categories:_filterState.selectedCategories
+                            sortBy:_filterState.sortBy];
+    }
+}
+
+- (void)updateFilterButtonTitle {
+    NSUInteger count = [_filterState activeFilterCount];
+    if (count > 0) {
+        _filterButton.title = [NSString stringWithFormat:@"Filter (%lu)",
+                               (unsigned long)count];
+    } else {
+        _filterButton.title = @"Filter";
+    }
+}
+
 #pragma mark - UITableViewDataSource
 
 - (NSArray *)pokemonForTableView:(UITableView *)tableView {
     if (tableView == self.searchDisplayController.searchResultsTableView) {
         return self.filteredPokemon;
     }
-    return self.allPokemon;
+    return self.displayedPokemon;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
@@ -134,7 +202,11 @@
 - (BOOL)searchDisplayController:(UISearchDisplayController *)controller
     shouldReloadTableForSearchString:(NSString *)searchString {
     self.filteredPokemon = [[DataManager sharedManager]
-        searchPokemonWithName:searchString];
+        searchPokemonWithQuery:searchString
+                         types:_filterState.selectedTypes
+                   generations:_filterState.selectedGenerations
+                    categories:_filterState.selectedCategories
+                        sortBy:_filterState.sortBy];
     return YES;
 }
 
