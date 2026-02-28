@@ -1,4 +1,5 @@
 #import <UIKit/UIKit.h>
+#import "HomeVC.h"
 #import "PokemonListVC.h"
 #import "PokemonDetailVC.h"
 #import "MoveListVC.h"
@@ -54,44 +55,67 @@
     return img;
 }
 
-// Draw a sword silhouette for the Moves tab (30x30 alpha mask)
-- (UIImage *)swordIcon {
+// Draw an 8-pointed starburst for the Moves tab (30x30 alpha mask)
+- (UIImage *)movesIcon {
     CGFloat size = 30;
     UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 0);
     CGContextRef ctx = UIGraphicsGetCurrentContext();
 
-    [[UIColor whiteColor] setStroke];
     [[UIColor whiteColor] setFill];
-    CGContextSetLineWidth(ctx, 2.0);
-    CGContextSetLineCap(ctx, kCGLineCapRound);
 
-    // Blade (diagonal from top-right to center)
-    CGContextMoveToPoint(ctx, 23, 3);
-    CGContextAddLineToPoint(ctx, 11, 15);
-    CGContextStrokePath(ctx);
+    CGFloat cx = size / 2.0;
+    CGFloat cy = size / 2.0;
+    CGFloat outerR = 13;
+    CGFloat innerR = 7;
+    NSInteger points = 8;
 
-    // Blade tip serifs
-    CGContextMoveToPoint(ctx, 23, 3);
-    CGContextAddLineToPoint(ctx, 19, 4);
-    CGContextStrokePath(ctx);
-    CGContextMoveToPoint(ctx, 23, 3);
-    CGContextAddLineToPoint(ctx, 22, 7);
-    CGContextStrokePath(ctx);
+    CGMutablePathRef path = CGPathCreateMutable();
+    for (int i = 0; i < points * 2; i++) {
+        CGFloat r = (i % 2 == 0) ? outerR : innerR;
+        CGFloat angle = (M_PI / 2.0) + (i * M_PI / points);
+        CGFloat x = cx + r * cos(angle);
+        CGFloat y2 = cy - r * sin(angle);
+        if (i == 0) {
+            CGPathMoveToPoint(path, NULL, x, y2);
+        } else {
+            CGPathAddLineToPoint(path, NULL, x, y2);
+        }
+    }
+    CGPathCloseSubpath(path);
 
-    // Cross guard
-    CGContextSetLineWidth(ctx, 2.5);
-    CGContextMoveToPoint(ctx, 7, 13);
-    CGContextAddLineToPoint(ctx, 15, 19);
-    CGContextStrokePath(ctx);
+    CGContextAddPath(ctx, path);
+    CGContextFillPath(ctx);
+    CGPathRelease(path);
 
-    // Handle
-    CGContextSetLineWidth(ctx, 2.5);
-    CGContextMoveToPoint(ctx, 11, 15);
-    CGContextAddLineToPoint(ctx, 6, 24);
-    CGContextStrokePath(ctx);
+    UIImage *img = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return img;
+}
 
-    // Pommel
-    CGContextFillEllipseInRect(ctx, CGRectMake(4, 22, 4, 4));
+// Draw a house silhouette for the Home tab (30x30 alpha mask)
+- (UIImage *)homeIcon {
+    CGFloat size = 30;
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+
+    [[UIColor whiteColor] setFill];
+
+    // Roof (triangle)
+    CGMutablePathRef roof = CGPathCreateMutable();
+    CGPathMoveToPoint(roof, NULL, 15, 2);
+    CGPathAddLineToPoint(roof, NULL, 27, 14);
+    CGPathAddLineToPoint(roof, NULL, 3, 14);
+    CGPathCloseSubpath(roof);
+    CGContextAddPath(ctx, roof);
+    CGContextFillPath(ctx);
+    CGPathRelease(roof);
+
+    // Body (rectangle)
+    CGContextFillRect(ctx, CGRectMake(6, 14, 18, 14));
+
+    // Door cutout
+    CGContextSetBlendMode(ctx, kCGBlendModeClear);
+    CGContextFillRect(ctx, CGRectMake(12, 19, 7, 9));
 
     UIImage *img = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
@@ -319,13 +343,13 @@
         pokedexSplit.delegate = self;
         pokedexSplit.title = @"Pokédex";
         pokedexSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Pokédex"
-            image:[self pokeballIcon] tag:0];
+            image:[self pokeballIcon] tag:1];
         pokedexTab = pokedexSplit;
     } else {
         UINavigationController *pokedexNav = [[UINavigationController alloc]
             initWithRootViewController:pokedexList];
         pokedexNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Pokédex"
-            image:[self pokeballIcon] tag:0];
+            image:[self pokeballIcon] tag:1];
         pokedexTab = pokedexNav;
     }
 
@@ -345,13 +369,13 @@
         movesSplit.delegate = self;
         movesSplit.title = @"Moves";
         movesSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Moves"
-            image:[self swordIcon] tag:1];
+            image:[self movesIcon] tag:2];
         movesTab = movesSplit;
     } else {
         UINavigationController *movesNav = [[UINavigationController alloc]
             initWithRootViewController:moveList];
         movesNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Moves"
-            image:[self swordIcon] tag:1];
+            image:[self movesIcon] tag:2];
         movesTab = movesNav;
     }
 
@@ -370,13 +394,13 @@
         abilitiesSplit.delegate = self;
         abilitiesSplit.title = @"Abilities";
         abilitiesSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Abilities"
-            image:[self abilitiesIcon] tag:2];
+            image:[self abilitiesIcon] tag:3];
         abilitiesTab = abilitiesSplit;
     } else {
         UINavigationController *abilitiesNav = [[UINavigationController alloc]
             initWithRootViewController:abilityList];
         abilitiesNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Abilities"
-            image:[self abilitiesIcon] tag:2];
+            image:[self abilitiesIcon] tag:3];
         abilitiesTab = abilitiesNav;
     }
 
@@ -395,13 +419,13 @@
         itemsSplit.delegate = self;
         itemsSplit.title = @"Items";
         itemsSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Items"
-            image:[self itemsIcon] tag:3];
+            image:[self itemsIcon] tag:4];
         itemsTab = itemsSplit;
     } else {
         UINavigationController *itemsNav = [[UINavigationController alloc]
             initWithRootViewController:itemList];
         itemsNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Items"
-            image:[self itemsIcon] tag:3];
+            image:[self itemsIcon] tag:4];
         itemsTab = itemsNav;
     }
 
@@ -420,13 +444,13 @@
         naturesSplit.delegate = self;
         naturesSplit.title = @"Natures";
         naturesSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Natures"
-            image:[self naturesIcon] tag:4];
+            image:[self naturesIcon] tag:5];
         naturesTab = naturesSplit;
     } else {
         UINavigationController *naturesNav = [[UINavigationController alloc]
             initWithRootViewController:natureList];
         naturesNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Natures"
-            image:[self naturesIcon] tag:4];
+            image:[self naturesIcon] tag:5];
         naturesTab = naturesNav;
     }
 
@@ -445,13 +469,13 @@
         eggGroupsSplit.delegate = self;
         eggGroupsSplit.title = @"Egg Groups";
         eggGroupsSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Egg Groups"
-            image:[self eggGroupsIcon] tag:5];
+            image:[self eggGroupsIcon] tag:6];
         eggGroupsTab = eggGroupsSplit;
     } else {
         UINavigationController *eggGroupsNav = [[UINavigationController alloc]
             initWithRootViewController:eggGroupList];
         eggGroupsNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Egg Groups"
-            image:[self eggGroupsIcon] tag:5];
+            image:[self eggGroupsIcon] tag:6];
         eggGroupsTab = eggGroupsNav;
     }
 
@@ -470,19 +494,26 @@
         berriesSplit.delegate = self;
         berriesSplit.title = @"Berries";
         berriesSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Berries"
-            image:[self berriesIcon] tag:6];
+            image:[self berriesIcon] tag:7];
         berriesTab = berriesSplit;
     } else {
         UINavigationController *berriesNav = [[UINavigationController alloc]
             initWithRootViewController:berryList];
         berriesNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Berries"
-            image:[self berriesIcon] tag:6];
+            image:[self berriesIcon] tag:7];
         berriesTab = berriesNav;
     }
 
+    // ─── Tab 0: Home ───────────────────────────────────────
+    HomeVC *homeVC = [[HomeVC alloc] init];
+    UINavigationController *homeNav = [[UINavigationController alloc]
+        initWithRootViewController:homeVC];
+    homeNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Home"
+        image:[self homeIcon] tag:0];
+
     // ─── Tab Bar ────────────────────────────────────────────
     UITabBarController *tabBar = [[UITabBarController alloc] init];
-    tabBar.viewControllers = @[pokedexTab, movesTab, abilitiesTab,
+    tabBar.viewControllers = @[homeNav, pokedexTab, movesTab, abilitiesTab,
         itemsTab, naturesTab, eggGroupsTab, berriesTab];
 
     self.window.rootViewController = tabBar;
