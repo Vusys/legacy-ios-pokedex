@@ -32,6 +32,13 @@
     p.moves = dict[@"moves"] ?: @[];
     p.heldItems = dict[@"held_items"] ?: @[];
     p.hasFemaleSprite = [dict[@"has_female_sprite"] boolValue];
+    p.growthRate = dict[@"growth_rate"] ?: @"";
+    p.isLegendary = [dict[@"is_legendary"] boolValue];
+    p.isMythical = [dict[@"is_mythical"] boolValue];
+    p.isBaby = [dict[@"is_baby"] boolValue];
+    p.flavorTextEntries = dict[@"flavor_text_entries"] ?: @[];
+    p.localizedNames = dict[@"localized_names"] ?: @[];
+    p.pokedexNumbers = dict[@"pokedex_numbers"] ?: @[];
     return p;
 }
 
@@ -63,6 +70,18 @@
     CGFloat femalePercent = (self.genderRate / 8.0) * 100.0;
     CGFloat malePercent = 100.0 - femalePercent;
     return [NSString stringWithFormat:@"%.1f%% M / %.1f%% F", malePercent, femalePercent];
+}
+
+- (NSString *)formattedGrowthRate {
+    NSDictionary *names = @{
+        @"fast":                  @"Fast",
+        @"medium":                @"Medium Fast",
+        @"medium-slow":           @"Medium Slow",
+        @"slow":                  @"Slow",
+        @"fast-then-very-slow":   @"Erratic",
+        @"slow-then-very-fast":   @"Fluctuating",
+    };
+    return names[self.growthRate] ?: self.growthRate;
 }
 
 @end

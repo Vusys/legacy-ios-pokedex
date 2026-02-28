@@ -329,6 +329,129 @@ function get_english_genus(array $genera): string {
 }
 
 /**
+ * Get all English flavor texts, deduplicated, with version grouping.
+ */
+function get_all_english_flavor_texts(array $entries): array {
+    $preferred = ['red', 'blue', 'yellow', 'gold', 'silver', 'crystal',
+                  'ruby', 'sapphire', 'emerald', 'firered', 'leafgreen',
+                  'diamond', 'pearl', 'platinum', 'heartgold', 'soulsilver',
+                  'black', 'white', 'black-2', 'white-2',
+                  'x', 'y', 'omega-ruby', 'alpha-sapphire',
+                  'sun', 'moon', 'ultra-sun', 'ultra-moon',
+                  'lets-go-pikachu', 'lets-go-eevee',
+                  'sword', 'shield', 'legends-arceus',
+                  'scarlet', 'violet'];
+
+    $englishEntries = array_filter($entries, fn($e) => ($e['language']['name'] ?? '') === 'en');
+
+    // Deduplicate: group by cleaned text, keep version list
+    $seen = []; // cleaned_text => ['text' => ..., 'versions' => [...]]
+
+    // Process in preferred order first
+    foreach ($preferred as $version) {
+        foreach ($englishEntries as $entry) {
+            if (($entry['version']['name'] ?? '') !== $version) continue;
+            $cleaned = clean_flavor_text($entry['flavor_text']);
+            if (empty($cleaned)) continue;
+            if (!isset($seen[$cleaned])) {
+                $seen[$cleaned] = ['text' => $cleaned, 'versions' => []];
+            }
+            $seen[$cleaned]['versions'][] = $version;
+        }
+    }
+
+    // Catch any versions not in preferred list
+    foreach ($englishEntries as $entry) {
+        $version = $entry['version']['name'] ?? '';
+        $cleaned = clean_flavor_text($entry['flavor_text']);
+        if (empty($cleaned)) continue;
+        if (isset($seen[$cleaned]) && !in_array($version, $seen[$cleaned]['versions'])) {
+            $seen[$cleaned]['versions'][] = $version;
+        } elseif (!isset($seen[$cleaned])) {
+            $seen[$cleaned] = ['text' => $cleaned, 'versions' => [$version]];
+        }
+    }
+
+    return array_values($seen);
+}
+
+/**
+ * Get localized names for display (Japanese, Korean, Chinese, European languages).
+ */
+function get_localized_names(array $names): array {
+    $wanted = [
+        'ja-hrkt' => 'Japanese',
+        'ko'      => 'Korean',
+        'zh-hant' => 'Chinese (Trad.)',
+        'zh-hans' => 'Chinese (Simp.)',
+        'fr'      => 'French',
+        'de'      => 'German',
+        'es'      => 'Spanish',
+        'it'      => 'Italian',
+    ];
+
+    $result = [];
+    // Process in the order defined above
+    foreach ($wanted as $langCode => $displayName) {
+        foreach ($names as $n) {
+            if (($n['language']['name'] ?? '') === $langCode) {
+                $result[] = [
+                    'language' => $displayName,
+                    'name' => $n['name'],
+                ];
+                break;
+            }
+        }
+    }
+    return $result;
+}
+
+/**
+ * Get regional Pokedex numbers, filtered to major dexes.
+ */
+function get_regional_dex_numbers(array $pokedexNumbers): array {
+    $dexDisplayNames = [
+        'national'         => 'National',
+        'kanto'            => 'Kanto',
+        'updated-johto'    => 'Johto',
+        'original-johto'   => 'Johto',
+        'updated-hoenn'    => 'Hoenn',
+        'hoenn'            => 'Hoenn',
+        'extended-sinnoh'  => 'Sinnoh',
+        'original-sinnoh'  => 'Sinnoh',
+        'updated-unova'    => 'Unova',
+        'original-unova'   => 'Unova',
+        'kalos-central'    => 'Kalos (Central)',
+        'kalos-coastal'    => 'Kalos (Coastal)',
+        'kalos-mountain'   => 'Kalos (Mountain)',
+        'updated-alola'    => 'Alola',
+        'original-alola'   => 'Alola',
+        'galar'            => 'Galar',
+        'hisui'            => 'Hisui',
+        'paldea'           => 'Paldea',
+    ];
+
+    $result = [];
+    $seen = []; // track display names to avoid duplicates
+
+    foreach ($pokedexNumbers as $pn) {
+        $apiName = $pn['pokedex']['name'] ?? '';
+        if (!isset($dexDisplayNames[$apiName])) continue;
+
+        $displayName = $dexDisplayNames[$apiName];
+        if (isset($seen[$displayName])) continue;
+        $seen[$displayName] = true;
+
+        $result[] = [
+            'name' => $displayName,
+            'number' => $pn['entry_number'],
+        ];
+    }
+
+    return $result;
+}
+
+/**
  * Get the English effect text for a move, with $effect_chance replaced.
  */
 function get_english_effect(array $entries, ?int $effectChance): string {
@@ -659,6 +782,7 @@ function main(): void {
             'base_experience' => $pokemonData['base_experience'] ?? 0,
             'abilities' => $abilities,
             'flavor_text' => $flavorText,
+            'flavor_text_entries' => get_all_english_flavor_texts($speciesData['flavor_text_entries'] ?? []),
             'genus' => $genus,
             'generation' => $speciesData['generation']['name'] ?? '',
             'habitat' => $speciesData['habitat']['name'] ?? '',
@@ -668,7 +792,13 @@ function main(): void {
             'capture_rate' => $speciesData['capture_rate'] ?? 0,
             'base_happiness' => $speciesData['base_happiness'] ?? 0,
             'hatch_counter' => $speciesData['hatch_counter'] ?? 0,
+            'growth_rate' => $speciesData['growth_rate']['name'] ?? '',
             'egg_groups' => $eggGroups,
+            'is_legendary' => $speciesData['is_legendary'] ?? false,
+            'is_mythical' => $speciesData['is_mythical'] ?? false,
+            'is_baby' => $speciesData['is_baby'] ?? false,
+            'localized_names' => get_localized_names($speciesData['names'] ?? []),
+            'pokedex_numbers' => get_regional_dex_numbers($speciesData['pokedex_numbers'] ?? []),
             'evolution_chain' => $evolutionChain,
             'has_female_sprite' => $hasFemaleSprite,
             'moves' => $moves,

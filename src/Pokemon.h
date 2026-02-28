@@ -26,6 +26,13 @@
 @property (nonatomic, strong) NSArray *moves;
 @property (nonatomic, strong) NSArray *heldItems;
 @property (nonatomic, assign) BOOL hasFemaleSprite;
+@property (nonatomic, strong) NSString *growthRate;
+@property (nonatomic, assign) BOOL isLegendary;
+@property (nonatomic, assign) BOOL isMythical;
+@property (nonatomic, assign) BOOL isBaby;
+@property (nonatomic, strong) NSArray *flavorTextEntries;
+@property (nonatomic, strong) NSArray *localizedNames;
+@property (nonatomic, strong) NSArray *pokedexNumbers;
 
 + (instancetype)pokemonFromDictionary:(NSDictionary *)dict;
 
@@ -34,5 +41,6 @@
 - (NSString *)formattedHeight;
 - (NSString *)formattedWeight;
 - (NSString *)genderString;
+- (NSString *)formattedGrowthRate;
 
 @end

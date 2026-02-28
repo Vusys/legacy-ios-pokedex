@@ -137,6 +137,11 @@
     y = [self buildHeaderCard:y cardWidth:cardWidth];
     NSLog(@"[PERF]   header: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
 
+    // ─── Localized Names Card ────────────────────────────────
+    cardStart = CFAbsoluteTimeGetCurrent();
+    y = [self buildLocalizedNamesCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   names: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
+
     // ─── Flavor Text Card ───────────────────────────────────
     cardStart = CFAbsoluteTimeGetCurrent();
     y = [self buildFlavorTextCard:y cardWidth:cardWidth];
@@ -156,6 +161,11 @@
     cardStart = CFAbsoluteTimeGetCurrent();
     y = [self buildInfoCard:y cardWidth:cardWidth];
     NSLog(@"[PERF]   info: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
+
+    // ─── Pokédex Numbers Card ────────────────────────────────
+    cardStart = CFAbsoluteTimeGetCurrent();
+    y = [self buildPokedexNumbersCard:y cardWidth:cardWidth];
+    NSLog(@"[PERF]   dex_numbers: %.1fms", (CFAbsoluteTimeGetCurrent() - cardStart) * 1000);
 
     // ─── Wild Held Items Card ───────────────────────────────
     cardStart = CFAbsoluteTimeGetCurrent();
@@ -263,12 +273,15 @@
 
     // Info row: number(18) + name(28) + genus(22) + badge(20) + gap(8)
     CGFloat infoHeight = 96;
+    // Classification badges (Legendary/Mythical/Baby)
+    BOOL hasClassification = self.pokemon.isLegendary || self.pokemon.isMythical || self.pokemon.isBaby;
+    CGFloat classificationHeight = hasClassification ? 22 : 0;
     // Artwork row
     CGFloat artworkRowHeight = artworkDisplaySize + 8;
     // Sprite strip row (front/back + toggle buttons)
     CGFloat spriteStripH = 88;
 
-    CGFloat cardHeight = CARD_PADDING + infoHeight + artworkRowHeight + spriteStripH + CARD_PADDING;
+    CGFloat cardHeight = CARD_PADDING + infoHeight + classificationHeight + artworkRowHeight + spriteStripH + CARD_PADDING;
     UIView *card = [self createCardAtY:y width:cardWidth height:cardHeight];
 
     CGFloat cy = CARD_PADDING;
@@ -313,6 +326,48 @@
         badgeX += [TypeBadgeView badgeWidth] + 6;
     }
     cy += [TypeBadgeView badgeHeight] + 8;
+
+    // Classification badges (Legendary / Mythical / Baby)
+    if (hasClassification) {
+        CGFloat classBadgeX = CARD_PADDING;
+        CGFloat classBadgeH = 18;
+        UIFont *classBadgeFont = [UIFont boldSystemFontOfSize:9];
+
+        NSMutableArray *badgeInfo = [[NSMutableArray alloc] init];
+        if (self.pokemon.isLegendary)
+            [badgeInfo addObject:@[@"LEGENDARY",
+                [UIColor colorWithRed:0.83 green:0.63 blue:0.09 alpha:1]]];
+        if (self.pokemon.isMythical)
+            [badgeInfo addObject:@[@"MYTHICAL",
+                [UIColor colorWithRed:0.55 green:0.36 blue:0.96 alpha:1]]];
+        if (self.pokemon.isBaby)
+            [badgeInfo addObject:@[@"BABY",
+                [UIColor colorWithRed:0.96 green:0.45 blue:0.71 alpha:1]]];
+
+        for (NSArray *info in badgeInfo) {
+            NSString *text = info[0];
+            UIColor *color = info[1];
+            CGSize textSize = [text sizeWithFont:classBadgeFont];
+            CGFloat badgeW = textSize.width + 12;
+
+            UIView *classBadge = [[UIView alloc] initWithFrame:
+                CGRectMake(classBadgeX, cy, badgeW, classBadgeH)];
+            classBadge.backgroundColor = color;
+            classBadge.layer.cornerRadius = 3;
+
+            UILabel *badgeLabel = [[UILabel alloc] initWithFrame:classBadge.bounds];
+            badgeLabel.text = text;
+            badgeLabel.font = classBadgeFont;
+            badgeLabel.textColor = [UIColor whiteColor];
+            badgeLabel.textAlignment = NSTextAlignmentCenter;
+            badgeLabel.backgroundColor = [UIColor clearColor];
+            [classBadge addSubview:badgeLabel];
+            [card addSubview:classBadge];
+
+            classBadgeX += badgeW + 4;
+        }
+        cy += classBadgeH + 4;
+    }
 
     // ── Artwork (centered) ──
     CGFloat artworkX = (cardWidth - artworkDisplaySize) / 2.0;
@@ -429,30 +484,137 @@
 }
 
 - (CGFloat)buildFlavorTextCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {
-    NSString *text = self.pokemon.flavorText;
-    if (text.length == 0) return y;
+    NSArray *entries = self.pokemon.flavorTextEntries;
+    NSString *fallbackText = self.pokemon.flavorText;
+
+    // Fall back to single flavor text if no entries array
+    if (!entries || entries.count == 0) {
+        if (fallbackText.length == 0) return y;
+        entries = @[@{@"text": fallbackText, @"versions": @[]}];
+    }
 
     CGFloat textWidth = cardWidth - (CARD_PADDING * 2);
-    UIFont *font = [UIFont italicSystemFontOfSize:BODY_FONT_SIZE];
-    CGSize textSize = [text sizeWithFont:font
-                       constrainedToSize:CGSizeMake(textWidth, 999)
-                           lineBreakMode:NSLineBreakByWordWrapping];
+    UIFont *textFont = [UIFont italicSystemFontOfSize:BODY_FONT_SIZE];
+    UIFont *versionFont = [UIFont boldSystemFontOfSize:11];
+    CGFloat versionLabelHeight = 16;
+    CGFloat entryGap = 8;
+    CGFloat separatorHeight = 9; // gap + 0.5px line + gap
 
-    CGFloat cardHeight = CARD_PADDING + textSize.height + CARD_PADDING;
-    UIView *card = [self createCardAtY:y width:cardWidth height:cardHeight];
+    // Version display name mapping
+    NSDictionary *versionNames = @{
+        @"red": @"Red", @"blue": @"Blue", @"yellow": @"Yellow",
+        @"gold": @"Gold", @"silver": @"Silver", @"crystal": @"Crystal",
+        @"ruby": @"Ruby", @"sapphire": @"Sapphire", @"emerald": @"Emerald",
+        @"firered": @"FireRed", @"leafgreen": @"LeafGreen",
+        @"diamond": @"Diamond", @"pearl": @"Pearl", @"platinum": @"Platinum",
+        @"heartgold": @"HeartGold", @"soulsilver": @"SoulSilver",
+        @"black": @"Black", @"white": @"White",
+        @"black-2": @"Black 2", @"white-2": @"White 2",
+        @"x": @"X", @"y": @"Y",
+        @"omega-ruby": @"Omega Ruby", @"alpha-sapphire": @"Alpha Sapphire",
+        @"sun": @"Sun", @"moon": @"Moon",
+        @"ultra-sun": @"Ultra Sun", @"ultra-moon": @"Ultra Moon",
+        @"lets-go-pikachu": @"Let's Go Pikachu",
+        @"lets-go-eevee": @"Let's Go Eevee",
+        @"sword": @"Sword", @"shield": @"Shield",
+        @"legends-arceus": @"Legends: Arceus",
+        @"scarlet": @"Scarlet", @"violet": @"Violet",
+    };
 
-    UILabel *textLabel = [[UILabel alloc] initWithFrame:
-        CGRectMake(CARD_PADDING, CARD_PADDING, textWidth, textSize.height)];
-    textLabel.text = text;
-    textLabel.font = font;
-    textLabel.textColor = [UIColor colorWithWhite:0.30 alpha:1];
-    textLabel.backgroundColor = [UIColor clearColor];
-    textLabel.numberOfLines = 0;
-    textLabel.lineBreakMode = NSLineBreakByWordWrapping;
-    [card addSubview:textLabel];
+    // Calculate total card height (two passes)
+    NSInteger showing = (NSInteger)entries.count;
+    CGFloat totalHeight = CARD_PADDING;
+
+    // Primary entry (no version label)
+    NSString *primaryText = entries[0][@"text"] ?: @"";
+    CGSize primarySize = [primaryText sizeWithFont:textFont
+                          constrainedToSize:CGSizeMake(textWidth, 999)
+                              lineBreakMode:NSLineBreakByWordWrapping];
+    totalHeight += primarySize.height;
+
+    // Additional entries with separator
+    if (showing > 1) {
+        totalHeight += separatorHeight;
+        for (NSInteger i = 1; i < showing; i++) {
+            if (i > 1) totalHeight += entryGap;
+            totalHeight += versionLabelHeight; // version label
+            NSString *entryText = entries[i][@"text"] ?: @"";
+            CGSize entrySize = [entryText sizeWithFont:textFont
+                                constrainedToSize:CGSizeMake(textWidth, 999)
+                                    lineBreakMode:NSLineBreakByWordWrapping];
+            totalHeight += entrySize.height;
+        }
+    }
+
+    totalHeight += CARD_PADDING;
+
+    UIView *card = [self createCardAtY:y width:cardWidth height:totalHeight];
+    CGFloat cy = CARD_PADDING;
+
+    // Primary flavor text (same style as before)
+    UILabel *primaryLabel = [[UILabel alloc] initWithFrame:
+        CGRectMake(CARD_PADDING, cy, textWidth, primarySize.height)];
+    primaryLabel.text = primaryText;
+    primaryLabel.font = textFont;
+    primaryLabel.textColor = [UIColor colorWithWhite:0.30 alpha:1];
+    primaryLabel.backgroundColor = [UIColor clearColor];
+    primaryLabel.numberOfLines = 0;
+    primaryLabel.lineBreakMode = NSLineBreakByWordWrapping;
+    [card addSubview:primaryLabel];
+    cy += primarySize.height;
+
+    // Additional entries
+    if (showing > 1) {
+        // Separator line
+        cy += 4;
+        UIView *sep = [[UIView alloc] initWithFrame:
+            CGRectMake(CARD_PADDING, cy, textWidth, 0.5)];
+        sep.backgroundColor = [UIColor colorWithWhite:0.82 alpha:1];
+        [card addSubview:sep];
+        cy += 0.5 + 4;
+
+        for (NSInteger i = 1; i < showing; i++) {
+            if (i > 1) cy += entryGap;
+
+            // Version label
+            NSDictionary *entry = entries[i];
+            NSArray *versions = entry[@"versions"] ?: @[];
+            NSMutableArray *displayVersions = [[NSMutableArray alloc] init];
+            for (NSString *v in versions) {
+                NSString *display = versionNames[v] ?: v;
+                [displayVersions addObject:display];
+            }
+            NSString *versionStr = [displayVersions componentsJoinedByString:@" / "];
+
+            UILabel *vLabel = [[UILabel alloc] initWithFrame:
+                CGRectMake(CARD_PADDING, cy, textWidth, versionLabelHeight)];
+            vLabel.text = versionStr;
+            vLabel.font = versionFont;
+            vLabel.textColor = [UIColor colorWithWhite:0.50 alpha:1];
+            vLabel.backgroundColor = [UIColor clearColor];
+            [card addSubview:vLabel];
+            cy += versionLabelHeight;
+
+            // Entry text
+            NSString *entryText = entry[@"text"] ?: @"";
+            CGSize entrySize = [entryText sizeWithFont:textFont
+                                constrainedToSize:CGSizeMake(textWidth, 999)
+                                    lineBreakMode:NSLineBreakByWordWrapping];
+            UILabel *entryLabel = [[UILabel alloc] initWithFrame:
+                CGRectMake(CARD_PADDING, cy, textWidth, entrySize.height)];
+            entryLabel.text = entryText;
+            entryLabel.font = textFont;
+            entryLabel.textColor = [UIColor colorWithWhite:0.30 alpha:1];
+            entryLabel.backgroundColor = [UIColor clearColor];
+            entryLabel.numberOfLines = 0;
+            entryLabel.lineBreakMode = NSLineBreakByWordWrapping;
+            [card addSubview:entryLabel];
+            cy += entrySize.height;
+        }
+    }
 
     [self.scrollView addSubview:card];
-    return y + cardHeight + CARD_SPACING;
+    return y + totalHeight + CARD_SPACING;
 }
 
 - (CGFloat)buildStatsCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {
@@ -521,6 +683,8 @@
     NSArray *rows = @[
         @[@"Height",    [self.pokemon formattedHeight]],
         @[@"Weight",    [self.pokemon formattedWeight]],
+        @[@"Color",     [self titleCase:self.pokemon.color]],
+        @[@"Shape",     [self formatShape:self.pokemon.shape]],
         @[@"Habitat",   [self titleCase:self.pokemon.habitat]],
         @[@"Catch Rate", [NSString stringWithFormat:@"%ld", (long)self.pokemon.captureRate]],
         @[@"Base Exp",  [NSString stringWithFormat:@"%ld", (long)self.pokemon.baseExperience]],
@@ -608,6 +772,7 @@
             (long)(self.pokemon.hatchCounter * 256)]],
         @[@"Base Happy", [NSString stringWithFormat:@"%ld",
             (long)self.pokemon.baseHappiness]],
+        @[@"Growth Rate", [self.pokemon formattedGrowthRate]],
     ];
 
     CGFloat rowHeight = 24;
@@ -827,6 +992,88 @@
         rarityLabel.textAlignment = NSTextAlignmentRight;
         rarityLabel.backgroundColor = [UIColor clearColor];
         [card addSubview:rarityLabel];
+
+        rowY += rowHeight;
+    }
+
+    [self.scrollView addSubview:card];
+    return y + cardHeight + CARD_SPACING;
+}
+
+- (CGFloat)buildLocalizedNamesCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {
+    NSArray *names = self.pokemon.localizedNames;
+    if (!names || names.count == 0) return y;
+
+    CGFloat rowHeight = 24;
+    CGFloat headerHeight = 26;
+    CGFloat cardHeight = CARD_PADDING + headerHeight + (rowHeight * names.count) + CARD_PADDING;
+    UIView *card = [self createCardAtY:y width:cardWidth height:cardHeight];
+
+    [self sectionHeaderWithTitle:@"Names" inCard:card atY:CARD_PADDING];
+
+    CGFloat rowY = CARD_PADDING + headerHeight;
+    CGFloat labelWidth = 120;
+    CGFloat valueX = CARD_PADDING + labelWidth;
+    CGFloat valueWidth = cardWidth - valueX - CARD_PADDING;
+
+    for (NSDictionary *entry in names) {
+        UILabel *label = [[UILabel alloc] initWithFrame:
+            CGRectMake(CARD_PADDING, rowY, labelWidth, rowHeight)];
+        label.text = entry[@"language"] ?: @"";
+        label.font = [UIFont boldSystemFontOfSize:BODY_FONT_SIZE];
+        label.textColor = [UIColor colorWithWhite:0.35 alpha:1];
+        label.backgroundColor = [UIColor clearColor];
+        [card addSubview:label];
+
+        UILabel *value = [[UILabel alloc] initWithFrame:
+            CGRectMake(valueX, rowY, valueWidth, rowHeight)];
+        value.text = entry[@"name"] ?: @"";
+        value.font = [UIFont systemFontOfSize:BODY_FONT_SIZE];
+        value.textColor = [UIColor darkTextColor];
+        value.backgroundColor = [UIColor clearColor];
+        [card addSubview:value];
+
+        rowY += rowHeight;
+    }
+
+    [self.scrollView addSubview:card];
+    return y + cardHeight + CARD_SPACING;
+}
+
+- (CGFloat)buildPokedexNumbersCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {
+    NSArray *numbers = self.pokemon.pokedexNumbers;
+    if (!numbers || numbers.count == 0) return y;
+
+    CGFloat rowHeight = 24;
+    CGFloat headerHeight = 26;
+    CGFloat cardHeight = CARD_PADDING + headerHeight + (rowHeight * numbers.count) + CARD_PADDING;
+    UIView *card = [self createCardAtY:y width:cardWidth height:cardHeight];
+
+    [self sectionHeaderWithTitle:@"Pok\u00e9dex Numbers" inCard:card atY:CARD_PADDING];
+
+    CGFloat rowY = CARD_PADDING + headerHeight;
+    CGFloat labelWidth = 120;
+    CGFloat valueX = CARD_PADDING + labelWidth;
+    CGFloat valueWidth = cardWidth - valueX - CARD_PADDING;
+
+    for (NSDictionary *entry in numbers) {
+        UILabel *label = [[UILabel alloc] initWithFrame:
+            CGRectMake(CARD_PADDING, rowY, labelWidth, rowHeight)];
+        label.text = entry[@"name"] ?: @"";
+        label.font = [UIFont boldSystemFontOfSize:BODY_FONT_SIZE];
+        label.textColor = [UIColor colorWithWhite:0.35 alpha:1];
+        label.backgroundColor = [UIColor clearColor];
+        [card addSubview:label];
+
+        UILabel *value = [[UILabel alloc] initWithFrame:
+            CGRectMake(valueX, rowY, valueWidth, rowHeight)];
+        NSInteger num = [entry[@"number"] integerValue];
+        value.text = [NSString stringWithFormat:@"#%03ld", (long)num];
+        value.font = [UIFont fontWithName:@"Courier-Bold" size:BODY_FONT_SIZE];
+        if (!value.font) value.font = [UIFont boldSystemFontOfSize:BODY_FONT_SIZE];
+        value.textColor = [UIColor darkTextColor];
+        value.backgroundColor = [UIColor clearColor];
+        [card addSubview:value];
 
         rowY += rowHeight;
     }
@@ -1280,6 +1527,27 @@
     if (!str || str.length == 0) return @"—";
     return [[[str substringToIndex:1] uppercaseString]
         stringByAppendingString:[str substringFromIndex:1]];
+}
+
+- (NSString *)formatShape:(NSString *)shape {
+    if (!shape || shape.length == 0) return @"\u2014";
+    NSDictionary *shapeNames = @{
+        @"ball":       @"Ball",
+        @"squiggle":   @"Squiggle",
+        @"fish":       @"Fish",
+        @"arms":       @"Arms",
+        @"blob":       @"Blob",
+        @"upright":    @"Upright",
+        @"legs":       @"Legs",
+        @"quadruped":  @"Quadruped",
+        @"wings":      @"Wings",
+        @"tentacles":  @"Tentacles",
+        @"heads":      @"Multiple Bodies",
+        @"humanoid":   @"Humanoid",
+        @"bug-wings":  @"Bug Wings",
+        @"armor":      @"Armor",
+    };
+    return shapeNames[shape] ?: [self titleCase:shape];
 }
 
 - (NSString *)formatGeneration:(NSString *)gen {
