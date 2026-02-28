@@ -164,6 +164,22 @@ Evolution chain data is already in each Pokémon's plist (the `evolution_chain` 
 
 ---
 
+## Phase 9: iPhone/iPod Touch Support ✓
+
+**Status: Complete (v1.3)**
+
+### What was built
+
+- **Device-conditional tab setup** in main.m: branches on `UI_USER_INTERFACE_IDIOM()` for all 7 tabs — iPad uses `UISplitViewController` (unchanged), iPhone uses `UINavigationController` wrapping each list VC directly
+- **iPhone navigation**: tapping a row in any list pushes the detail VC onto the nav stack (existing `else` branch in `didSelectRowAtIndexPath:` — previously unreachable, now the active path on iPhone)
+- **Modal filter presentation** on iPhone: 5 list VCs (PokemonListVC, MoveListVC, AbilityListVC, ItemListVC, BerryListVC) branch filter presentation — iPad shows `UIPopoverController`, iPhone wraps `FilterPopoverVC` in `UINavigationController` and presents modally with Cancel + Apply buttons
+- **FilterPopoverVC width-adaptive layout**: replaced hardcoded `POPOVER_WIDTH` constant with `contentWidth` helper (returns 380 on iPad, `self.view.bounds.size.width` on iPhone); all layout — scroll view, sort control, type grid, generation grid, category buttons, bottom bar — uses dynamic width
+- **Cancel button**: FilterPopoverVC adds a Cancel bar button item on iPhone for dismissing the modal without applying
+- **No changes needed**: all 7 detail VCs (already use `self.view.bounds`), all cell classes (already use `contentView.bounds`), EggGroupListVC/NatureListVC (no filter popover), Info.plist (already declares both device families)
+- **Modified**: main.m, FilterPopoverVC.m, PokemonListVC.m, MoveListVC.m, AbilityListVC.m, ItemListVC.m, BerryListVC.m (7 files)
+
+---
+
 ## Phase Summary
 
 | Phase | Feature | New Data | New Images | Effort |
@@ -176,3 +192,4 @@ Evolution chain data is already in each Pokémon's plist (the `evolution_chain` 
 | 6 | Abilities + Items | ~367 abilities, ~2175 items | ~2175 item sprites | **Done** |
 | 7 | Audio + polish | ~1025 cries | — | Medium |
 | 8 | Natures, Egg Groups + Berries | 25 natures, 15 egg groups, 64 berries | 64 berry sprites | **Done** |
+| 9 | iPhone/iPod Touch support | — | — | **Done** |

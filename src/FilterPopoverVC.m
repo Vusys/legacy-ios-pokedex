@@ -3,7 +3,6 @@
 #import "TypeBadgeView.h"
 #import <QuartzCore/QuartzCore.h>
 
-#define POPOVER_WIDTH 380
 #define SECTION_PADDING 12
 #define SECTION_HEADER_HEIGHT 24
 #define BOTTOM_BAR_HEIGHT 48
@@ -71,10 +70,25 @@ static NSString *generationDisplayName(NSString *gen) {
     return @[@"number", @"name", @"stat_total"]; // pokemon
 }
 
+- (CGFloat)contentWidth {
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        return 380;
+    }
+    return self.view.bounds.size.width;
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
 
     if (!_filterMode) _filterMode = @"pokemon";
+
+    // Add Cancel button on iPhone (modal presentation)
+    if (UI_USER_INTERFACE_IDIOM() != UIUserInterfaceIdiomPad) {
+        self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc]
+            initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
+            target:self action:@selector(cancelTapped)];
+        self.title = @"Filter";
+    }
 
     // Compute popover height based on content
     CGFloat contentHeight = SECTION_PADDING;
@@ -85,14 +99,17 @@ static NSString *generationDisplayName(NSString *gen) {
     contentHeight += SECTION_PADDING;
     CGFloat popoverHeight = MIN(contentHeight + BOTTOM_BAR_HEIGHT, 560);
 
-    self.contentSizeForViewInPopover = CGSizeMake(POPOVER_WIDTH, popoverHeight);
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        self.contentSizeForViewInPopover = CGSizeMake(380, popoverHeight);
+    }
     self.view.backgroundColor = [UIColor colorWithWhite:0.95 alpha:1];
 
     // Scroll view for content (above bottom bar)
     CGFloat scrollHeight = popoverHeight - BOTTOM_BAR_HEIGHT;
     _scrollView = [[UIScrollView alloc] initWithFrame:
-        CGRectMake(0, 0, POPOVER_WIDTH, scrollHeight)];
+        CGRectMake(0, 0, [self contentWidth], scrollHeight)];
     _scrollView.alwaysBounceVertical = YES;
+    _scrollView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [self.view addSubview:_scrollView];
 
     CGFloat y = SECTION_PADDING;
@@ -102,7 +119,7 @@ static NSString *generationDisplayName(NSString *gen) {
 
     _sortControl = [[UISegmentedControl alloc] initWithItems:[self sortItemsForMode]];
     _sortControl.frame = CGRectMake(SECTION_PADDING, y,
-        POPOVER_WIDTH - SECTION_PADDING * 2, 30);
+        [self contentWidth] - SECTION_PADDING * 2, 30);
     [self selectSortSegment];
     [_sortControl addTarget:self action:@selector(sortChanged:)
            forControlEvents:UIControlEventValueChanged];
@@ -136,7 +153,7 @@ static NSString *generationDisplayName(NSString *gen) {
         }
     }
 
-    _scrollView.contentSize = CGSizeMake(POPOVER_WIDTH, y + SECTION_PADDING);
+    _scrollView.contentSize = CGSizeMake([self contentWidth], y + SECTION_PADDING);
 
     // ─── Bottom Bar ───
     [self buildBottomBarAtY:popoverHeight - BOTTOM_BAR_HEIGHT];
@@ -146,7 +163,7 @@ static NSString *generationDisplayName(NSString *gen) {
 
 - (CGFloat)addSectionHeaderAtY:(CGFloat)y title:(NSString *)title {
     UILabel *label = [[UILabel alloc] initWithFrame:
-        CGRectMake(SECTION_PADDING, y, POPOVER_WIDTH - SECTION_PADDING * 2, SECTION_HEADER_HEIGHT)];
+        CGRectMake(SECTION_PADDING, y, [self contentWidth] - SECTION_PADDING * 2, SECTION_HEADER_HEIGHT)];
     label.text = title;
     label.font = [UIFont boldSystemFontOfSize:13];
     label.textColor = [UIColor colorWithWhite:0.4 alpha:1];
@@ -184,7 +201,7 @@ static NSString *generationDisplayName(NSString *gen) {
     CGFloat vPad = 6;
     NSInteger cols = 4;
     CGFloat totalW = cols * badgeW + (cols - 1) * hPad;
-    CGFloat startX = (POPOVER_WIDTH - totalW) / 2;
+    CGFloat startX = ([self contentWidth] - totalW) / 2;
 
     for (NSUInteger i = 0; i < allTypes.count; i++) {
         NSString *typeName = allTypes[i];
@@ -255,7 +272,7 @@ static NSString *generationDisplayName(NSString *gen) {
     CGFloat vPad = 4;
     NSInteger cols = 3;
     CGFloat totalW = cols * btnW + (cols - 1) * hPad;
-    CGFloat startX = (POPOVER_WIDTH - totalW) / 2;
+    CGFloat startX = ([self contentWidth] - totalW) / 2;
 
     for (NSUInteger i = 0; i < gens.count; i++) {
         NSString *gen = gens[i];
@@ -321,7 +338,7 @@ static NSString *generationDisplayName(NSString *gen) {
     CGFloat btnH = 30;
     CGFloat hPad = 8;
     CGFloat totalW = labels.count * btnW + (labels.count - 1) * hPad;
-    CGFloat startX = (POPOVER_WIDTH - totalW) / 2;
+    CGFloat startX = ([self contentWidth] - totalW) / 2;
 
     for (NSUInteger i = 0; i < labels.count; i++) {
         CGFloat x = startX + i * (btnW + hPad);
@@ -382,12 +399,14 @@ static NSString *generationDisplayName(NSString *gen) {
 
 - (void)buildBottomBarAtY:(CGFloat)barY {
     UIView *bar = [[UIView alloc] initWithFrame:
-        CGRectMake(0, barY, POPOVER_WIDTH, BOTTOM_BAR_HEIGHT)];
+        CGRectMake(0, barY, [self contentWidth], BOTTOM_BAR_HEIGHT)];
     bar.backgroundColor = [UIColor colorWithWhite:0.92 alpha:1];
+    bar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
 
     // Top separator
     UIView *sep = [[UIView alloc] initWithFrame:
-        CGRectMake(0, 0, POPOVER_WIDTH, 0.5)];
+        CGRectMake(0, 0, [self contentWidth], 0.5)];
+    sep.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     sep.backgroundColor = [UIColor colorWithWhite:0.75 alpha:1];
     [bar addSubview:sep];
 
@@ -404,7 +423,8 @@ static NSString *generationDisplayName(NSString *gen) {
 
     // Apply button
     UIButton *applyBtn = [UIButton buttonWithType:UIButtonTypeRoundedRect];
-    applyBtn.frame = CGRectMake(POPOVER_WIDTH - SECTION_PADDING - 90, 8, 90, 32);
+    applyBtn.frame = CGRectMake([self contentWidth] - SECTION_PADDING - 90, 8, 90, 32);
+    applyBtn.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
     applyBtn.backgroundColor = [UIColor colorWithRed:0.2 green:0.5 blue:0.9 alpha:1];
     applyBtn.layer.cornerRadius = 6;
     [applyBtn setTitle:@"Apply" forState:UIControlStateNormal];
@@ -424,6 +444,10 @@ static NSString *generationDisplayName(NSString *gen) {
 
 - (void)applyTapped {
     [_delegate filterPopoverDidApply:_filterState];
+}
+
+- (void)cancelTapped {
+    [self dismissViewControllerAnimated:YES completion:nil];
 }
 
 #pragma mark - Refresh

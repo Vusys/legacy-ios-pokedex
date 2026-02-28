@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-iOS 6 Pokédex app targeting jailbroken iPad 2 (ARMv7). Pure Objective-C with ARC, no package managers or third-party libraries. All data comes from PokeAPI v2, pre-processed into plist files bundled with the app.
+iOS 6 Pokédex app targeting jailbroken iPad 2 and iPhone/iPod Touch (ARMv7). Pure Objective-C with ARC, no package managers or third-party libraries. All data comes from PokeAPI v2, pre-processed into plist files bundled with the app.
 
-Current version: 1.2. See ROADMAP.md for completed phases (1-3, 6, 8) and planned work (4, 5, 7).
+Current version: 1.3. See ROADMAP.md for completed phases (1-3, 6, 8-9) and planned work (4, 5, 7).
 
 ## Build & Deploy
 

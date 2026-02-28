@@ -120,25 +120,34 @@
 #pragma mark - Filter
 
 - (void)showFilterPopover:(UIBarButtonItem *)sender {
-    if (_filterPopover && _filterPopover.isPopoverVisible) {
-        [_filterPopover dismissPopoverAnimated:YES];
-        return;
-    }
-
     FilterPopoverVC *filterVC = [[FilterPopoverVC alloc] init];
     filterVC.filterState = [_filterState copy];
     filterVC.filterMode = @"items";
     filterVC.delegate = self;
 
-    _filterPopover = [[UIPopoverController alloc] initWithContentViewController:filterVC];
-    [_filterPopover presentPopoverFromBarButtonItem:sender
-                           permittedArrowDirections:UIPopoverArrowDirectionAny
-                                           animated:YES];
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        if (_filterPopover && _filterPopover.isPopoverVisible) {
+            [_filterPopover dismissPopoverAnimated:YES];
+            return;
+        }
+        _filterPopover = [[UIPopoverController alloc] initWithContentViewController:filterVC];
+        [_filterPopover presentPopoverFromBarButtonItem:sender
+                               permittedArrowDirections:UIPopoverArrowDirectionAny
+                                               animated:YES];
+    } else {
+        UINavigationController *filterNav = [[UINavigationController alloc]
+            initWithRootViewController:filterVC];
+        [self presentViewController:filterNav animated:YES completion:nil];
+    }
 }
 
 - (void)filterPopoverDidApply:(FilterState *)filterState {
     self.filterState = filterState;
-    [_filterPopover dismissPopoverAnimated:YES];
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        [_filterPopover dismissPopoverAnimated:YES];
+    } else {
+        [self dismissViewControllerAnimated:YES completion:nil];
+    }
     [self recomputeDisplayedItems];
     [self updateFilterButtonTitle];
     [self.tableView reloadData];
