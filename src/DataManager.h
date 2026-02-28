@@ -3,6 +3,8 @@
 
 @class Pokemon;
 @class Move;
+@class Ability;
+@class Item;
 
 @interface DataManager : NSObject
 
@@ -34,6 +36,23 @@
 // Move detail (loaded on demand)
 - (Move *)moveDetailWithID:(NSInteger)moveID;
 
+// Abilities index (lightweight, loaded once)
+- (NSArray *)allAbilitySummaries;
+- (NSArray *)searchAbilitiesWithQuery:(NSString *)query
+                          generations:(NSSet *)generations
+                               sortBy:(NSString *)sortBy;
+
+// Ability detail (loaded on demand)
+- (Ability *)abilityDetailWithID:(NSInteger)abilityID;
+
+// Items index (lightweight, loaded once)
+- (NSArray *)allItemSummaries;
+- (NSArray *)searchItemsWithQuery:(NSString *)query
+                           sortBy:(NSString *)sortBy;
+
+// Item detail (loaded on demand)
+- (Item *)itemDetailWithID:(NSInteger)itemID;
+
 // Pokemon name lookup (for move detail "learned by" list)
 - (NSString *)pokemonNameForID:(NSInteger)pokemonID;
 
@@ -43,5 +62,6 @@
 - (UIImage *)shinySpriteForPokemonID:(NSInteger)pokemonID;
 - (UIImage *)backSpriteForPokemonID:(NSInteger)pokemonID;
 - (UIImage *)femaleSpriteForPokemonID:(NSInteger)pokemonID;
+- (UIImage *)spriteForItemName:(NSString *)apiName;
 
 @end

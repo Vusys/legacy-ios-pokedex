@@ -97,7 +97,7 @@
 
     FilterPopoverVC *filterVC = [[FilterPopoverVC alloc] init];
     filterVC.filterState = [_filterState copy];
-    filterVC.movesMode = NO;
+    filterVC.filterMode = @"pokemon";
     filterVC.delegate = self;
 
     _filterPopover = [[UIPopoverController alloc] initWithContentViewController:filterVC];

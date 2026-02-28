@@ -4,7 +4,6 @@
 #import <QuartzCore/QuartzCore.h>
 
 #define POPOVER_WIDTH 380
-#define POPOVER_HEIGHT 560
 #define SECTION_PADDING 12
 #define SECTION_HEADER_HEIGHT 24
 #define BOTTOM_BAR_HEIGHT 48
@@ -40,14 +39,51 @@ static NSString *generationDisplayName(NSString *gen) {
 
 @implementation FilterPopoverVC
 
+- (BOOL)showTypes {
+    return [_filterMode isEqualToString:@"pokemon"] || [_filterMode isEqualToString:@"moves"];
+}
+
+- (BOOL)showGenerations {
+    return ![_filterMode isEqualToString:@"items"];
+}
+
+- (BOOL)showCategories {
+    return [_filterMode isEqualToString:@"pokemon"] || [_filterMode isEqualToString:@"moves"];
+}
+
+- (NSArray *)sortItemsForMode {
+    if ([_filterMode isEqualToString:@"moves"])     return @[@"Number", @"Name", @"Power"];
+    if ([_filterMode isEqualToString:@"abilities"]) return @[@"Number", @"Name"];
+    if ([_filterMode isEqualToString:@"items"])     return @[@"Number", @"Name", @"Cost"];
+    return @[@"Number", @"Name", @"Stat Total"]; // pokemon
+}
+
+- (NSArray *)sortKeysForMode {
+    if ([_filterMode isEqualToString:@"moves"])     return @[@"number", @"name", @"power"];
+    if ([_filterMode isEqualToString:@"abilities"]) return @[@"number", @"name"];
+    if ([_filterMode isEqualToString:@"items"])     return @[@"number", @"name", @"cost"];
+    return @[@"number", @"name", @"stat_total"]; // pokemon
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
 
-    self.contentSizeForViewInPopover = CGSizeMake(POPOVER_WIDTH, POPOVER_HEIGHT);
+    if (!_filterMode) _filterMode = @"pokemon";
+
+    // Compute popover height based on content
+    CGFloat contentHeight = SECTION_PADDING;
+    contentHeight += SECTION_HEADER_HEIGHT + 38; // sort
+    if ([self showTypes]) contentHeight += SECTION_HEADER_HEIGHT + 170; // type grid ~5 rows
+    if ([self showGenerations]) contentHeight += SECTION_HEADER_HEIGHT + 105; // gen grid ~3 rows
+    if ([self showCategories]) contentHeight += SECTION_HEADER_HEIGHT + 42; // cat buttons
+    contentHeight += SECTION_PADDING;
+    CGFloat popoverHeight = MIN(contentHeight + BOTTOM_BAR_HEIGHT, 560);
+
+    self.contentSizeForViewInPopover = CGSizeMake(POPOVER_WIDTH, popoverHeight);
     self.view.backgroundColor = [UIColor colorWithWhite:0.95 alpha:1];
 
     // Scroll view for content (above bottom bar)
-    CGFloat scrollHeight = POPOVER_HEIGHT - BOTTOM_BAR_HEIGHT;
+    CGFloat scrollHeight = popoverHeight - BOTTOM_BAR_HEIGHT;
     _scrollView = [[UIScrollView alloc] initWithFrame:
         CGRectMake(0, 0, POPOVER_WIDTH, scrollHeight)];
     _scrollView.alwaysBounceVertical = YES;
@@ -58,13 +94,7 @@ static NSString *generationDisplayName(NSString *gen) {
     // ─── Sort ───
     y = [self addSectionHeaderAtY:y title:@"Sort By"];
 
-    NSArray *sortItems;
-    if (_movesMode) {
-        sortItems = @[@"Number", @"Name", @"Power"];
-    } else {
-        sortItems = @[@"Number", @"Name", @"Stat Total"];
-    }
-    _sortControl = [[UISegmentedControl alloc] initWithItems:sortItems];
+    _sortControl = [[UISegmentedControl alloc] initWithItems:[self sortItemsForMode]];
     _sortControl.frame = CGRectMake(SECTION_PADDING, y,
         POPOVER_WIDTH - SECTION_PADDING * 2, 30);
     [self selectSortSegment];
@@ -73,31 +103,37 @@ static NSString *generationDisplayName(NSString *gen) {
     [_scrollView addSubview:_sortControl];
     y += 38;
 
-    // ─── Type Grid ───
-    y = [self addSectionHeaderAtY:y title:@"Type"];
-    y = [self buildTypeGridAtY:y];
+    // ─── Type Grid (pokemon + moves only) ───
+    if ([self showTypes]) {
+        y = [self addSectionHeaderAtY:y title:@"Type"];
+        y = [self buildTypeGridAtY:y];
+    }
 
-    // ─── Generation List ───
-    y = [self addSectionHeaderAtY:y title:@"Generation"];
-    y = [self buildGenerationListAtY:y];
+    // ─── Generation List (pokemon + moves + abilities) ───
+    if ([self showGenerations]) {
+        y = [self addSectionHeaderAtY:y title:@"Generation"];
+        y = [self buildGenerationListAtY:y];
+    }
 
-    // ─── Category / Damage Class ───
-    if (_movesMode) {
-        y = [self addSectionHeaderAtY:y title:@"Damage Class"];
-        y = [self buildCategoryButtonsAtY:y
-                                   labels:@[@"Physical", @"Special", @"Status"]
-                                     keys:@[@"physical", @"special", @"status"]];
-    } else {
-        y = [self addSectionHeaderAtY:y title:@"Category"];
-        y = [self buildCategoryButtonsAtY:y
-                                   labels:@[@"Legendary", @"Mythical", @"Baby"]
-                                     keys:@[@"legendary", @"mythical", @"baby"]];
+    // ─── Category / Damage Class (pokemon + moves only) ───
+    if ([self showCategories]) {
+        if ([_filterMode isEqualToString:@"moves"]) {
+            y = [self addSectionHeaderAtY:y title:@"Damage Class"];
+            y = [self buildCategoryButtonsAtY:y
+                                       labels:@[@"Physical", @"Special", @"Status"]
+                                         keys:@[@"physical", @"special", @"status"]];
+        } else {
+            y = [self addSectionHeaderAtY:y title:@"Category"];
+            y = [self buildCategoryButtonsAtY:y
+                                       labels:@[@"Legendary", @"Mythical", @"Baby"]
+                                         keys:@[@"legendary", @"mythical", @"baby"]];
+        }
     }
 
     _scrollView.contentSize = CGSizeMake(POPOVER_WIDTH, y + SECTION_PADDING);
 
     // ─── Bottom Bar ───
-    [self buildBottomBar];
+    [self buildBottomBarAtY:popoverHeight - BOTTOM_BAR_HEIGHT];
 }
 
 #pragma mark - Section Header
@@ -117,22 +153,13 @@ static NSString *generationDisplayName(NSString *gen) {
 
 - (void)selectSortSegment {
     NSString *sort = _filterState.sortBy ?: @"number";
-    if ([sort isEqualToString:@"number"]) {
-        _sortControl.selectedSegmentIndex = 0;
-    } else if ([sort isEqualToString:@"name"]) {
-        _sortControl.selectedSegmentIndex = 1;
-    } else {
-        _sortControl.selectedSegmentIndex = 2;
-    }
+    NSArray *keys = [self sortKeysForMode];
+    NSUInteger idx = [keys indexOfObject:sort];
+    _sortControl.selectedSegmentIndex = (idx != NSNotFound) ? (NSInteger)idx : 0;
 }
 
 - (void)sortChanged:(UISegmentedControl *)sender {
-    NSArray *sortKeys;
-    if (_movesMode) {
-        sortKeys = @[@"number", @"name", @"power"];
-    } else {
-        sortKeys = @[@"number", @"name", @"stat_total"];
-    }
+    NSArray *sortKeys = [self sortKeysForMode];
     NSInteger idx = sender.selectedSegmentIndex;
     if (idx >= 0 && idx < (NSInteger)sortKeys.count) {
         _filterState.sortBy = sortKeys[idx];
@@ -312,13 +339,16 @@ static NSString *generationDisplayName(NSString *gen) {
     return y + btnH + 8;
 }
 
-- (void)catToggled:(UIButton *)sender {
-    NSArray *keys;
-    if (_movesMode) {
-        keys = @[@"physical", @"special", @"status"];
-    } else {
-        keys = @[@"legendary", @"mythical", @"baby"];
+- (NSArray *)categoryKeysForMode {
+    if ([_filterMode isEqualToString:@"moves"]) {
+        return @[@"physical", @"special", @"status"];
     }
+    return @[@"legendary", @"mythical", @"baby"];
+}
+
+- (void)catToggled:(UIButton *)sender {
+    NSArray *keys = [self categoryKeysForMode];
+    if (sender.tag >= (NSInteger)keys.count) return;
     NSString *key = keys[sender.tag];
 
     if ([_filterState.selectedCategories containsObject:key]) {
@@ -344,8 +374,7 @@ static NSString *generationDisplayName(NSString *gen) {
 
 #pragma mark - Bottom Bar
 
-- (void)buildBottomBar {
-    CGFloat barY = POPOVER_HEIGHT - BOTTOM_BAR_HEIGHT;
+- (void)buildBottomBarAtY:(CGFloat)barY {
     UIView *bar = [[UIView alloc] initWithFrame:
         CGRectMake(0, barY, POPOVER_WIDTH, BOTTOM_BAR_HEIGHT)];
     bar.backgroundColor = [UIColor colorWithWhite:0.92 alpha:1];
@@ -396,27 +425,28 @@ static NSString *generationDisplayName(NSString *gen) {
 - (void)refreshAllControls {
     [self selectSortSegment];
 
-    NSArray *allTypes = [PokemonType allTypeNames];
-    for (NSUInteger i = 0; i < _typeBadges.count; i++) {
-        BOOL selected = [_filterState.selectedTypes containsObject:allTypes[i]];
-        [self styleTypeButton:_typeBadges[i] selected:selected typeName:allTypes[i]];
+    if ([self showTypes]) {
+        NSArray *allTypes = [PokemonType allTypeNames];
+        for (NSUInteger i = 0; i < _typeBadges.count; i++) {
+            BOOL selected = [_filterState.selectedTypes containsObject:allTypes[i]];
+            [self styleTypeButton:_typeBadges[i] selected:selected typeName:allTypes[i]];
+        }
     }
 
-    NSArray *gens = generationNames();
-    for (NSUInteger i = 0; i < _genButtons.count; i++) {
-        BOOL selected = [_filterState.selectedGenerations containsObject:gens[i]];
-        [self styleGenButton:_genButtons[i] selected:selected];
+    if ([self showGenerations]) {
+        NSArray *gens = generationNames();
+        for (NSUInteger i = 0; i < _genButtons.count; i++) {
+            BOOL selected = [_filterState.selectedGenerations containsObject:gens[i]];
+            [self styleGenButton:_genButtons[i] selected:selected];
+        }
     }
 
-    NSArray *catKeys;
-    if (_movesMode) {
-        catKeys = @[@"physical", @"special", @"status"];
-    } else {
-        catKeys = @[@"legendary", @"mythical", @"baby"];
-    }
-    for (NSUInteger i = 0; i < _catButtons.count; i++) {
-        BOOL selected = [_filterState.selectedCategories containsObject:catKeys[i]];
-        [self styleCatButton:_catButtons[i] selected:selected];
+    if ([self showCategories]) {
+        NSArray *catKeys = [self categoryKeysForMode];
+        for (NSUInteger i = 0; i < _catButtons.count; i++) {
+            BOOL selected = [_filterState.selectedCategories containsObject:catKeys[i]];
+            [self styleCatButton:_catButtons[i] selected:selected];
+        }
     }
 }
 

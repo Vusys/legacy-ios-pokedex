@@ -9,6 +9,6 @@
 
 @property (nonatomic, weak) id<FilterPopoverDelegate> delegate;
 @property (nonatomic, strong) FilterState *filterState;
-@property (nonatomic, assign) BOOL movesMode;
+@property (nonatomic, copy) NSString *filterMode; // @"pokemon", @"moves", @"abilities", @"items"
 
 @end

@@ -6,7 +6,7 @@ IPAD_PROJECT="/var/mobile/Pokedex"
 IPAD_SDK="/var/sdk"
 APP_NAME="Pokedex"
 BUNDLE_ID="com.vusys.pokedex"
-VERSION="1.0"
+VERSION="1.1"
 
 # Host destination for built IPAs
 DEST_DIR="$(cd "$(dirname "$0")/.." && pwd)/builds"

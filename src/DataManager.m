@@ -1,12 +1,18 @@
 #import "DataManager.h"
 #import "Pokemon.h"
 #import "Move.h"
+#import "Ability.h"
+#import "Item.h"
 
 @interface DataManager ()
 @property (nonatomic, strong) NSArray *pokemonIndex;
 @property (nonatomic, strong) NSArray *movesIndex;
+@property (nonatomic, strong) NSArray *abilitiesIndex;
+@property (nonatomic, strong) NSArray *itemsIndex;
 @property (nonatomic, strong) NSMutableDictionary *pokemonDetailCache;
 @property (nonatomic, strong) NSMutableDictionary *moveDetailCache;
+@property (nonatomic, strong) NSMutableDictionary *abilityDetailCache;
+@property (nonatomic, strong) NSMutableDictionary *itemDetailCache;
 @property (nonatomic, strong) NSDictionary *pokemonNameLookup;
 @property (nonatomic, strong) NSCache *spriteCache;
 @end
@@ -27,8 +33,10 @@
     if (self) {
         _pokemonDetailCache = [[NSMutableDictionary alloc] init];
         _moveDetailCache = [[NSMutableDictionary alloc] init];
+        _abilityDetailCache = [[NSMutableDictionary alloc] init];
+        _itemDetailCache = [[NSMutableDictionary alloc] init];
         _spriteCache = [[NSCache alloc] init];
-        _spriteCache.countLimit = 400;
+        _spriteCache.countLimit = 500;
     }
     return self;
 }
@@ -303,6 +311,159 @@
     return move;
 }
 
+#pragma mark - Abilities Index
+
+- (NSArray *)allAbilitySummaries {
+    if (!_abilitiesIndex) {
+        CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
+        NSString *path = [[NSBundle mainBundle] pathForResource:@"index"
+                                                        ofType:@"plist"
+                                                   inDirectory:@"data/abilities"];
+        if (path) {
+            _abilitiesIndex = [NSArray arrayWithContentsOfFile:path];
+        }
+        if (!_abilitiesIndex) {
+            NSLog(@"WARNING: Could not load abilities/index.plist");
+            _abilitiesIndex = @[];
+        } else {
+            NSLog(@"[PERF] DataManager loadAbilitiesIndex: %.1fms (%lu entries)",
+                  (CFAbsoluteTimeGetCurrent() - start) * 1000,
+                  (unsigned long)_abilitiesIndex.count);
+        }
+    }
+    return _abilitiesIndex;
+}
+
+- (NSArray *)searchAbilitiesWithQuery:(NSString *)query
+                          generations:(NSSet *)generations
+                               sortBy:(NSString *)sortBy {
+    NSArray *results = [self allAbilitySummaries];
+
+    // Filter by generations
+    if (generations.count > 0) {
+        results = [results filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+                return [generations containsObject:entry[@"generation"]];
+            }]];
+    }
+
+    // Search query
+    if (query.length > 0) {
+        NSString *lowerQuery = [query lowercaseString];
+        results = [results filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+                NSString *name = [entry[@"name"] lowercaseString];
+                return [name rangeOfString:lowerQuery].location != NSNotFound;
+            }]];
+    }
+
+    // Sort
+    if ([sortBy isEqualToString:@"name"]) {
+        results = [results sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+            return [a[@"name"] compare:b[@"name"] options:NSCaseInsensitiveSearch];
+        }];
+    }
+
+    return results;
+}
+
+#pragma mark - Ability Detail
+
+- (Ability *)abilityDetailWithID:(NSInteger)abilityID {
+    NSNumber *key = @(abilityID);
+    Ability *cached = _abilityDetailCache[key];
+    if (cached) return cached;
+
+    NSString *filename = [NSString stringWithFormat:@"%ld", (long)abilityID];
+    NSString *path = [[NSBundle mainBundle] pathForResource:filename
+                                                    ofType:@"plist"
+                                               inDirectory:@"data/abilities"];
+    if (!path) return nil;
+
+    NSDictionary *dict = [NSDictionary dictionaryWithContentsOfFile:path];
+    if (!dict) return nil;
+
+    Ability *ability = [Ability abilityFromDictionary:dict];
+    _abilityDetailCache[key] = ability;
+    return ability;
+}
+
+#pragma mark - Items Index
+
+- (NSArray *)allItemSummaries {
+    if (!_itemsIndex) {
+        CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
+        NSString *path = [[NSBundle mainBundle] pathForResource:@"index"
+                                                        ofType:@"plist"
+                                                   inDirectory:@"data/items"];
+        if (path) {
+            _itemsIndex = [NSArray arrayWithContentsOfFile:path];
+        }
+        if (!_itemsIndex) {
+            NSLog(@"WARNING: Could not load items/index.plist");
+            _itemsIndex = @[];
+        } else {
+            NSLog(@"[PERF] DataManager loadItemsIndex: %.1fms (%lu entries)",
+                  (CFAbsoluteTimeGetCurrent() - start) * 1000,
+                  (unsigned long)_itemsIndex.count);
+        }
+    }
+    return _itemsIndex;
+}
+
+- (NSArray *)searchItemsWithQuery:(NSString *)query
+                           sortBy:(NSString *)sortBy {
+    NSArray *results = [self allItemSummaries];
+
+    // Search query
+    if (query.length > 0) {
+        NSString *lowerQuery = [query lowercaseString];
+        results = [results filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+                NSString *name = [entry[@"name"] lowercaseString];
+                return [name rangeOfString:lowerQuery].location != NSNotFound;
+            }]];
+    }
+
+    // Sort
+    if ([sortBy isEqualToString:@"name"]) {
+        results = [results sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+            return [a[@"name"] compare:b[@"name"] options:NSCaseInsensitiveSearch];
+        }];
+    } else if ([sortBy isEqualToString:@"cost"]) {
+        results = [results sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+            NSInteger ca = [a[@"cost"] integerValue];
+            NSInteger cb = [b[@"cost"] integerValue];
+            if (cb > ca) return NSOrderedDescending;
+            if (cb < ca) return NSOrderedAscending;
+            return NSOrderedSame;
+        }];
+    }
+
+    return results;
+}
+
+#pragma mark - Item Detail
+
+- (Item *)itemDetailWithID:(NSInteger)itemID {
+    NSNumber *key = @(itemID);
+    Item *cached = _itemDetailCache[key];
+    if (cached) return cached;
+
+    NSString *filename = [NSString stringWithFormat:@"%ld", (long)itemID];
+    NSString *path = [[NSBundle mainBundle] pathForResource:filename
+                                                    ofType:@"plist"
+                                               inDirectory:@"data/items"];
+    if (!path) return nil;
+
+    NSDictionary *dict = [NSDictionary dictionaryWithContentsOfFile:path];
+    if (!dict) return nil;
+
+    Item *item = [Item itemFromDictionary:dict];
+    _itemDetailCache[key] = item;
+    return item;
+}
+
 #pragma mark - Pokemon Name Lookup
 
 - (NSString *)pokemonNameForID:(NSInteger)pokemonID {
@@ -352,6 +513,25 @@
     NSString *path = [[NSBundle mainBundle] pathForResource:filename
                                                     ofType:@"png"
                                                inDirectory:directory];
+    if (!path) return nil;
+
+    UIImage *image = [[UIImage alloc] initWithContentsOfFile:path];
+    if (image) {
+        [_spriteCache setObject:image forKey:key];
+    }
+    return image;
+}
+
+- (UIImage *)spriteForItemName:(NSString *)apiName {
+    if (!apiName || apiName.length == 0) return nil;
+
+    NSString *key = [NSString stringWithFormat:@"items:%@", apiName];
+    UIImage *cached = [_spriteCache objectForKey:key];
+    if (cached) return cached;
+
+    NSString *path = [[NSBundle mainBundle] pathForResource:apiName
+                                                    ofType:@"png"
+                                               inDirectory:@"sprites/items"];
     if (!path) return nil;
 
     UIImage *image = [[UIImage alloc] initWithContentsOfFile:path];

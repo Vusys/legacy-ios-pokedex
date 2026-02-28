@@ -104,21 +104,21 @@ Evolution chain data is already in each Pokémon's plist (the `evolution_chain` 
 
 ---
 
-## Phase 6: Abilities + Items Databases
+## Phase 6: Abilities + Items Databases ✓
 
-### Abilities Tab/Section
+**Status: Complete (v1.1)**
 
-- **Endpoint**: `/api/v2/ability/{id}` (~300 abilities)
-- **Fields**: name, effect description, flavor text, generation, Pokémon with this ability
-- Searchable list, tap for detail showing description + Pokémon list
-- Link from Pokémon detail view ability names to the ability detail
+### What was built
 
-### Items Database
-
-- **Endpoint**: `/api/v2/item/{id}` (~2000 items)
-- **Fields**: name, category, cost, effect, flavor text, sprite, held-by Pokémon, fling power
-- **Item sprites**: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/{name}.png`
-- Organized by pocket/category (Poké Balls, Medicine, TMs, Berries, etc.)
+- **Abilities tab** (green nav bar): AbilityListVC with 44px cells (name + "Gen X" subtitle), search bar, generation filter via FilterPopoverVC, AbilityDetailVC with card layout showing header (name + generation), effect/flavor text, and Pokémon list with sprites, numbers, names, and purple "Hidden" badges
+- **Items tab** (orange nav bar): ItemListVC with 50px cells (32x32 item sprite + name + category + right-aligned cost), search bar, "Cost" column header, sort by number/name/cost, ItemDetailVC with card layout showing header (sprite + name + category + cost), effect/flavor text, fling info (conditional), and held-by Pokémon list
+- **Models**: Ability.h/.m (abilityID, name, generation, isMainSeries, effect, flavorText, pokemon array, generationDisplay helper), Item.h/.m (itemID, name, apiName, category, cost, effect, flavorText, hasSprite, heldBy, flingPower, flingEffect, costString/categoryDisplay helpers)
+- **FilterPopoverVC refactored**: replaced `BOOL movesMode` with `NSString *filterMode` supporting 4 modes — pokemon (types+gens+categories, sort: number/name/stat_total), moves (types+gens+damage_class, sort: number/name/power), abilities (gens only, sort: number/name), items (sort only: number/name/cost). Popover height auto-adjusts per mode.
+- **DataManager extended**: allAbilitySummaries, searchAbilitiesWithQuery:generations:sortBy:, abilityDetailWithID:, allItemSummaries, searchItemsWithQuery:sortBy:, itemDetailWithID:, spriteForItemName: with shared sprite cache (limit raised to 500)
+- **Data pipeline**: fetch.php downloads ~367 abilities and ~2175 items with item sprites; process.php generates abilities/index.plist, abilities/{id}.plist, items/index.plist, items/{id}.plist, and copies item sprites
+- **Tab bar**: 4 tabs — Pokédex (pokéball), Moves (sword), Abilities (star), Items (bag)
+- **New files**: Ability.h/.m, AbilityCell.h/.m, AbilityListVC.h/.m, AbilityDetailVC.h/.m, Item.h/.m, ItemCell.h/.m, ItemListVC.h/.m, ItemDetailVC.h/.m (16 files)
+- **Modified**: DataManager.h/.m, FilterPopoverVC.h/.m, MoveListVC.m, PokemonListVC.m, main.m, scripts/config.sh, tools/fetch.php, tools/process.php
 
 ---
 
@@ -193,6 +193,6 @@ Three additional reference databases to round out the Pokédex.
 | 3 | Additional images | — | 1025 artwork, 1025 shiny, 862 back, 101 female | **Done** |
 | 4 | Type chart | — | — | Medium |
 | 5 | Evolution chains | — (data exists) | — | Small |
-| 6 | Abilities + Items | ~300 abilities, ~2000 items | ~2000 item sprites | Large |
+| 6 | Abilities + Items | ~367 abilities, ~2175 items | ~2175 item sprites | **Done** |
 | 7 | Audio + polish | ~1025 cries | — | Medium |
 | 8 | Natures, Egg Groups + Berries | 25 natures, 15 egg groups, ~64 berries | ~64 berry sprites | Medium |

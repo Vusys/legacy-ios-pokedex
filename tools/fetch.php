@@ -10,6 +10,9 @@
  *   - Move damage classes (/api/v2/move-damage-class/{id})
  *   - Evolution chains (discovered from species data)
  *   - Front-default sprite PNGs
+ *   - All Ability data (/api/v2/ability/{id})
+ *   - All Item data (/api/v2/item/{id})
+ *   - Item sprite PNGs (from GitHub)
  *
  * Everything is cached to tools/.cache/ so re-runs skip already-fetched data.
  *
@@ -142,7 +145,8 @@ function main(): void {
 
     // Ensure cache directories exist
     foreach (['pokemon', 'species', 'types', 'moves', 'move-damage-class', 'evolution-chains',
-              'sprites', 'sprites-artwork', 'sprites-shiny', 'sprites-back', 'sprites-female'] as $dir) {
+              'sprites', 'sprites-artwork', 'sprites-shiny', 'sprites-back', 'sprites-female',
+              'abilities', 'items', 'sprites-items'] as $dir) {
         $path = CACHE_DIR . '/' . $dir;
         if (!is_dir($path)) mkdir($path, 0755, true);
     }
@@ -310,6 +314,108 @@ function main(): void {
     $femaleStats = download_sprite_variant('sprites-female', 'Female Sprites', $totalSpecies,
         fn($data) => $data['sprites']['front_female'] ?? null);
 
+    // Step 9: Fetch all Ability data
+    echo "Fetching ability list to discover IDs...\n";
+    $abilityListData = fetch_json(BASE_URL . '/ability?limit=10000');
+    $totalAbilities = $abilityListData['count'] ?? 0;
+    $abilityIds = [];
+    foreach (($abilityListData['results'] ?? []) as $entry) {
+        if (preg_match('/\/ability\/(\d+)\/?$/', $entry['url'], $m)) {
+            $abilityIds[] = (int)$m[1];
+        }
+    }
+    sort($abilityIds);
+    echo "Total abilities: {$totalAbilities} (IDs discovered: " . count($abilityIds) . ")\n\n";
+
+    echo "--- Fetching Ability data ---\n";
+    $fetchedAbilities = 0;
+    $skippedAbilities = 0;
+    $processedAbilities = 0;
+    foreach ($abilityIds as $id) {
+        $processedAbilities++;
+        if (is_cached('abilities', (string)$id)) {
+            $skippedAbilities++;
+        } else {
+            $data = fetch_json_cached('abilities', (string)$id, BASE_URL . "/ability/{$id}");
+            if ($data === null) {
+                echo "  WARN: Failed to fetch ability/{$id}, skipping\n";
+            }
+            $fetchedAbilities++;
+        }
+
+        if ($processedAbilities % 50 === 0 || $processedAbilities === count($abilityIds)) {
+            echo "  Abilities: {$processedAbilities}/" . count($abilityIds) . " (fetched: {$fetchedAbilities}, cached: {$skippedAbilities})\n";
+        }
+    }
+    echo "\n";
+
+    // Step 10: Fetch all Item data
+    echo "Fetching item list to discover IDs...\n";
+    $itemListData = fetch_json(BASE_URL . '/item?limit=10000');
+    $totalItems = $itemListData['count'] ?? 0;
+    $itemIds = [];
+    $itemNames = []; // id → name, needed for sprite downloads
+    foreach (($itemListData['results'] ?? []) as $entry) {
+        if (preg_match('/\/item\/(\d+)\/?$/', $entry['url'], $m)) {
+            $id = (int)$m[1];
+            $itemIds[] = $id;
+            $itemNames[$id] = $entry['name'];
+        }
+    }
+    sort($itemIds);
+    echo "Total items: {$totalItems} (IDs discovered: " . count($itemIds) . ")\n\n";
+
+    echo "--- Fetching Item data ---\n";
+    $fetchedItems = 0;
+    $skippedItems = 0;
+    $processedItems = 0;
+    foreach ($itemIds as $id) {
+        $processedItems++;
+        if (is_cached('items', (string)$id)) {
+            $skippedItems++;
+        } else {
+            $data = fetch_json_cached('items', (string)$id, BASE_URL . "/item/{$id}");
+            if ($data === null) {
+                echo "  WARN: Failed to fetch item/{$id}, skipping\n";
+            }
+            $fetchedItems++;
+        }
+
+        if ($processedItems % 100 === 0 || $processedItems === count($itemIds)) {
+            echo "  Items: {$processedItems}/" . count($itemIds) . " (fetched: {$fetchedItems}, cached: {$skippedItems})\n";
+        }
+    }
+    echo "\n";
+
+    // Step 11: Download Item Sprites
+    echo "--- Downloading Item Sprites ---\n";
+    $itemSpritesFetched = 0;
+    $itemSpritesCached = 0;
+    $itemSpritesMissing = 0;
+    $processedItemSprites = 0;
+    foreach ($itemIds as $id) {
+        $processedItemSprites++;
+        $name = $itemNames[$id] ?? null;
+        if ($name === null) {
+            $itemSpritesMissing++;
+        } elseif (is_cached('sprites-items', $name, 'png')) {
+            $itemSpritesCached++;
+        } else {
+            $url = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/{$name}.png";
+            $data = fetch_cached('sprites-items', $name, $url, 'png');
+            if ($data === null) {
+                $itemSpritesMissing++;
+            } else {
+                $itemSpritesFetched++;
+            }
+        }
+
+        if ($processedItemSprites % 200 === 0 || $processedItemSprites === count($itemIds)) {
+            echo "  Item Sprites: {$processedItemSprites}/" . count($itemIds) . " (fetched: {$itemSpritesFetched}, cached: {$itemSpritesCached}, missing: {$itemSpritesMissing})\n";
+        }
+    }
+    echo "\n";
+
     // Summary
     echo "=== Fetch Complete ===\n";
     echo "  Pokemon:   {$totalSpecies} entries\n";
@@ -327,6 +433,10 @@ function main(): void {
     echo "  Back:           {$backTotal} downloaded, {$backStats['missing']} missing\n";
     $femaleTotal = $femaleStats['fetched'] + $femaleStats['cached'];
     echo "  Female:         {$femaleTotal} downloaded, {$femaleStats['missing']} missing\n";
+    echo "  Abilities: {$totalAbilities} entries\n";
+    echo "  Items:     {$totalItems} entries\n";
+    $itemSpritesTotal = $itemSpritesFetched + $itemSpritesCached;
+    echo "  Item Sprites:   {$itemSpritesTotal} downloaded, {$itemSpritesMissing} missing\n";
     echo "  Cache dir: " . realpath(CACHE_DIR) . "\n\n";
     echo "Next step: php tools/process.php\n";
 }

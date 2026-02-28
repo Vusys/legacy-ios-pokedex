@@ -1,34 +1,34 @@
-#import "MoveListVC.h"
-#import "MoveCell.h"
-#import "MoveDetailVC.h"
+#import "ItemListVC.h"
+#import "ItemCell.h"
+#import "ItemDetailVC.h"
 #import "DataManager.h"
 #import "FilterState.h"
 #import "FilterPopoverVC.h"
 #import <QuartzCore/QuartzCore.h>
 
-#define MOVE_CELL_HEIGHT 50
-#define MOVE_CELL_ID @"MoveCell"
+#define ITEM_CELL_HEIGHT 50
+#define ITEM_CELL_ID @"ItemCell"
 
-@interface MoveListVC () <UISearchDisplayDelegate, UISearchBarDelegate>
-@property (nonatomic, strong) NSArray *allMoves;
-@property (nonatomic, strong) NSArray *displayedMoves;
-@property (nonatomic, strong) NSArray *filteredMoves;
+@interface ItemListVC () <UISearchDisplayDelegate, UISearchBarDelegate>
+@property (nonatomic, strong) NSArray *allItems;
+@property (nonatomic, strong) NSArray *displayedItems;
+@property (nonatomic, strong) NSArray *filteredItems;
 @property (nonatomic, strong) UISearchDisplayController *searchDC;
 @property (nonatomic, strong) FilterState *filterState;
 @property (nonatomic, strong) UIPopoverController *filterPopover;
 @property (nonatomic, strong) UIBarButtonItem *filterButton;
 @end
 
-@implementation MoveListVC
+@implementation ItemListVC
 
 - (void)viewDidLoad {
     [super viewDidLoad];
 
-    self.title = @"Moves";
+    self.title = @"Items";
     self.filterState = [[FilterState alloc] init];
-    self.allMoves = [[DataManager sharedManager] allMoveSummaries];
-    self.displayedMoves = self.allMoves;
-    self.filteredMoves = @[];
+    self.allItems = [[DataManager sharedManager] allItemSummaries];
+    self.displayedItems = self.allItems;
+    self.filteredItems = @[];
 
     [self styleNavBar];
 
@@ -49,31 +49,27 @@
     // Search bar
     UISearchBar *searchBar = [[UISearchBar alloc]
         initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 44)];
-    searchBar.placeholder = @"Search Moves";
+    searchBar.placeholder = @"Search Items";
     searchBar.delegate = self;
     searchBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     [headerWrapper addSubview:searchBar];
 
-    // Column labels
+    // Column label bar
     UIView *colBar = [[UIView alloc] initWithFrame:
         CGRectMake(0, 44, self.view.bounds.size.width, 24)];
     colBar.backgroundColor = [UIColor colorWithWhite:0.93 alpha:1];
     colBar.clipsToBounds = YES;
 
-    CGFloat statsRight = self.view.bounds.size.width - 8;
-    CGFloat statColW = 44;
-    NSArray *colNames = @[@"PP", @"Acc", @"Pow"];
-    for (int i = 0; i < 3; i++) {
-        CGFloat x = statsRight - statColW * (3 - i);
-        UILabel *col = [[UILabel alloc] initWithFrame:CGRectMake(x, 0, statColW, 24)];
-        col.text = colNames[i];
-        col.font = [UIFont boldSystemFontOfSize:10];
-        col.textColor = [UIColor grayColor];
-        col.textAlignment = NSTextAlignmentCenter;
-        col.backgroundColor = [UIColor clearColor];
-        col.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
-        [colBar addSubview:col];
-    }
+    UILabel *costCol = [[UILabel alloc] initWithFrame:
+        CGRectMake(self.view.bounds.size.width - 78, 0, 70, 24)];
+    costCol.text = @"Cost";
+    costCol.font = [UIFont boldSystemFontOfSize:10];
+    costCol.textColor = [UIColor grayColor];
+    costCol.textAlignment = NSTextAlignmentRight;
+    costCol.backgroundColor = [UIColor clearColor];
+    costCol.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
+    [colBar addSubview:costCol];
+
     UIView *colSep = [[UIView alloc] initWithFrame:
         CGRectMake(0, 23.5, self.view.bounds.size.width, 0.5)];
     colSep.backgroundColor = [UIColor colorWithWhite:0.80 alpha:1];
@@ -98,8 +94,8 @@
 
     CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
     CGFloat colors[] = {
-        0.15, 0.25, 0.50, 1.0,   // dark blue top
-        0.25, 0.40, 0.65, 1.0    // lighter blue bottom
+        0.60, 0.35, 0.10, 1.0,   // dark orange top
+        0.75, 0.50, 0.15, 1.0    // lighter orange bottom
     };
     CGGradientRef gradient = CGGradientCreateWithColorComponents(colorSpace, colors, NULL, 2);
     CGContextDrawLinearGradient(ctx, gradient,
@@ -131,7 +127,7 @@
 
     FilterPopoverVC *filterVC = [[FilterPopoverVC alloc] init];
     filterVC.filterState = [_filterState copy];
-    filterVC.filterMode = @"moves";
+    filterVC.filterMode = @"items";
     filterVC.delegate = self;
 
     _filterPopover = [[UIPopoverController alloc] initWithContentViewController:filterVC];
@@ -143,61 +139,52 @@
 - (void)filterPopoverDidApply:(FilterState *)filterState {
     self.filterState = filterState;
     [_filterPopover dismissPopoverAnimated:YES];
-    [self recomputeDisplayedMoves];
+    [self recomputeDisplayedItems];
     [self updateFilterButtonTitle];
     [self.tableView reloadData];
 }
 
-- (void)recomputeDisplayedMoves {
-    if (![_filterState hasActiveFilters] &&
-        [_filterState.sortBy isEqualToString:@"number"]) {
-        self.displayedMoves = self.allMoves;
+- (void)recomputeDisplayedItems {
+    if ([_filterState.sortBy isEqualToString:@"number"]) {
+        self.displayedItems = self.allItems;
     } else {
-        self.displayedMoves = [[DataManager sharedManager]
-            searchMovesWithQuery:nil
-                           types:_filterState.selectedTypes
-                     generations:_filterState.selectedGenerations
-                   damageClasses:_filterState.selectedCategories
+        self.displayedItems = [[DataManager sharedManager]
+            searchItemsWithQuery:nil
                           sortBy:_filterState.sortBy];
     }
 }
 
 - (void)updateFilterButtonTitle {
-    NSUInteger count = [_filterState activeFilterCount];
-    if (count > 0) {
-        _filterButton.title = [NSString stringWithFormat:@"Filter (%lu)",
-                               (unsigned long)count];
-    } else {
-        _filterButton.title = @"Filter";
-    }
+    // Items mode only has sort, no active "filters" per se
+    _filterButton.title = @"Filter";
 }
 
 #pragma mark - UITableViewDataSource
 
-- (NSArray *)movesForTableView:(UITableView *)tableView {
+- (NSArray *)itemsForTableView:(UITableView *)tableView {
     if (tableView == self.searchDisplayController.searchResultsTableView) {
-        return self.filteredMoves;
+        return self.filteredItems;
     }
-    return self.displayedMoves;
+    return self.displayedItems;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return [self movesForTableView:tableView].count;
+    return [self itemsForTableView:tableView].count;
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
-    return MOVE_CELL_HEIGHT;
+    return ITEM_CELL_HEIGHT;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    MoveCell *cell = [tableView dequeueReusableCellWithIdentifier:MOVE_CELL_ID];
+    ItemCell *cell = [tableView dequeueReusableCellWithIdentifier:ITEM_CELL_ID];
     if (!cell) {
-        cell = [[MoveCell alloc] initWithStyle:UITableViewCellStyleDefault
-                               reuseIdentifier:MOVE_CELL_ID];
+        cell = [[ItemCell alloc] initWithStyle:UITableViewCellStyleDefault
+                               reuseIdentifier:ITEM_CELL_ID];
     }
 
-    NSArray *data = [self movesForTableView:tableView];
+    NSArray *data = [self itemsForTableView:tableView];
     if (indexPath.row < (NSInteger)data.count) {
         [cell configureCellWithSummary:data[indexPath.row]];
     }
@@ -209,14 +196,14 @@
 - (void)tableView:(UITableView *)tableView
     didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
 
-    NSArray *data = [self movesForTableView:tableView];
+    NSArray *data = [self itemsForTableView:tableView];
     if (indexPath.row >= (NSInteger)data.count) return;
 
     NSDictionary *summary = data[indexPath.row];
-    NSInteger moveID = [summary[@"id"] integerValue];
+    NSInteger itemID = [summary[@"id"] integerValue];
 
-    MoveDetailVC *detailVC = [[MoveDetailVC alloc] init];
-    detailVC.moveID = moveID;
+    ItemDetailVC *detailVC = [[ItemDetailVC alloc] init];
+    detailVC.itemID = itemID;
     UINavigationController *detailNav = [[UINavigationController alloc]
         initWithRootViewController:detailVC];
 
@@ -234,17 +221,14 @@
 
 - (BOOL)searchDisplayController:(UISearchDisplayController *)controller
     shouldReloadTableForSearchString:(NSString *)searchString {
-    self.filteredMoves = [[DataManager sharedManager]
-        searchMovesWithQuery:searchString
-                       types:_filterState.selectedTypes
-                 generations:_filterState.selectedGenerations
-               damageClasses:_filterState.selectedCategories
+    self.filteredItems = [[DataManager sharedManager]
+        searchItemsWithQuery:searchString
                       sortBy:_filterState.sortBy];
     return YES;
 }
 
 - (void)searchDisplayControllerDidEndSearch:(UISearchDisplayController *)controller {
-    self.filteredMoves = @[];
+    self.filteredItems = @[];
 }
 
 @end

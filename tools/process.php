@@ -6,12 +6,17 @@
  * Writes to src/data/ (plists) and src/sprites/ (PNGs).
  *
  * Output:
- *   src/data/index.plist         - Lightweight array of all Pokemon (id, name, types)
- *   src/data/types.plist         - Type metadata with colors and damage relations
- *   src/data/pokemon/{id}.plist  - Full detail per Pokemon
- *   src/data/moves/index.plist   - Lightweight array of all moves (id, name, type, power, etc.)
- *   src/data/moves/{id}.plist    - Full detail per move
- *   src/sprites/{id}.png         - Front-default sprites (copied from cache)
+ *   src/data/index.plist              - Lightweight array of all Pokemon (id, name, types)
+ *   src/data/types.plist              - Type metadata with colors and damage relations
+ *   src/data/pokemon/{id}.plist       - Full detail per Pokemon
+ *   src/data/moves/index.plist        - Lightweight array of all moves (id, name, type, power, etc.)
+ *   src/data/moves/{id}.plist         - Full detail per move
+ *   src/data/abilities/index.plist    - Lightweight array of all abilities
+ *   src/data/abilities/{id}.plist     - Full detail per ability
+ *   src/data/items/index.plist        - Lightweight array of all items
+ *   src/data/items/{id}.plist         - Full detail per item
+ *   src/sprites/{id}.png              - Front-default sprites (copied from cache)
+ *   src/sprites/items/{name}.png      - Item sprites (copied from cache)
  *
  * Usage: php tools/process.php
  */
@@ -31,6 +36,10 @@ define('BACK_SRC', CACHE_DIR . '/sprites-back');
 define('BACK_DST', SRC_DIR . '/sprites/back');
 define('FEMALE_SRC', CACHE_DIR . '/sprites-female');
 define('FEMALE_DST', SRC_DIR . '/sprites/female');
+define('ABILITIES_DIR', DATA_DIR . '/abilities');
+define('ITEMS_DIR', DATA_DIR . '/items');
+define('ITEM_SPRITES_SRC', CACHE_DIR . '/sprites-items');
+define('ITEM_SPRITES_DST', SRC_DIR . '/sprites/items');
 
 // Standard community-agreed Pokemon type colors
 define('TYPE_COLORS', [
@@ -354,6 +363,80 @@ function get_english_move_flavor(array $entries): string {
     return '';
 }
 
+/**
+ * Get the English name from a localized names array.
+ */
+function get_english_name(array $names, string $fallbackApiName): string {
+    foreach ($names as $n) {
+        if (($n['language']['name'] ?? '') === 'en') {
+            return $n['name'];
+        }
+    }
+    return title_case_name($fallbackApiName);
+}
+
+/**
+ * Get the first English flavor text for an ability.
+ * Abilities use 'flavor_text' field and 'version_group' key.
+ */
+function get_english_ability_flavor(array $entries): string {
+    $preferred = ['red-blue', 'yellow', 'gold-silver', 'crystal',
+                  'ruby-sapphire', 'emerald', 'firered-leafgreen',
+                  'diamond-pearl', 'platinum', 'heartgold-soulsilver',
+                  'black-white', 'black-2-white-2',
+                  'x-y', 'omega-ruby-alpha-sapphire',
+                  'sun-moon', 'ultra-sun-ultra-moon',
+                  'sword-shield', 'legends-arceus',
+                  'scarlet-violet'];
+
+    $englishEntries = array_filter($entries, fn($e) => ($e['language']['name'] ?? '') === 'en');
+
+    foreach ($preferred as $vg) {
+        foreach ($englishEntries as $entry) {
+            if (($entry['version_group']['name'] ?? '') === $vg) {
+                return clean_flavor_text($entry['flavor_text']);
+            }
+        }
+    }
+
+    foreach ($englishEntries as $entry) {
+        return clean_flavor_text($entry['flavor_text']);
+    }
+
+    return '';
+}
+
+/**
+ * Get the first English flavor text for an item.
+ * Items use 'text' field and 'version_group' key.
+ */
+function get_english_item_flavor(array $entries): string {
+    $preferred = ['red-blue', 'yellow', 'gold-silver', 'crystal',
+                  'ruby-sapphire', 'emerald', 'firered-leafgreen',
+                  'diamond-pearl', 'platinum', 'heartgold-soulsilver',
+                  'black-white', 'black-2-white-2',
+                  'x-y', 'omega-ruby-alpha-sapphire',
+                  'sun-moon', 'ultra-sun-ultra-moon',
+                  'sword-shield', 'legends-arceus',
+                  'scarlet-violet'];
+
+    $englishEntries = array_filter($entries, fn($e) => ($e['language']['name'] ?? '') === 'en');
+
+    foreach ($preferred as $vg) {
+        foreach ($englishEntries as $entry) {
+            if (($entry['version_group']['name'] ?? '') === $vg) {
+                return clean_flavor_text($entry['text']);
+            }
+        }
+    }
+
+    foreach ($englishEntries as $entry) {
+        return clean_flavor_text($entry['text']);
+    }
+
+    return '';
+}
+
 // ─── Main Processing ────────────────────────────────────────────────
 
 function main(): void {
@@ -367,6 +450,9 @@ function main(): void {
     if (!is_dir(SHINY_DST)) mkdir(SHINY_DST, 0755, true);
     if (!is_dir(BACK_DST)) mkdir(BACK_DST, 0755, true);
     if (!is_dir(FEMALE_DST)) mkdir(FEMALE_DST, 0755, true);
+    if (!is_dir(ABILITIES_DIR)) mkdir(ABILITIES_DIR, 0755, true);
+    if (!is_dir(ITEMS_DIR)) mkdir(ITEMS_DIR, 0755, true);
+    if (!is_dir(ITEM_SPRITES_DST)) mkdir(ITEM_SPRITES_DST, 0755, true);
 
     // Determine how many species we have cached
     $speciesFiles = glob(CACHE_DIR . '/species/*.json');
@@ -776,12 +862,190 @@ function main(): void {
     write_plist(MOVES_DIR . '/index.plist', $movesIndex);
     echo "\n";
 
+    // Process abilities
+    echo "--- Processing Abilities ---\n";
+    $abilityFiles = glob(CACHE_DIR . '/abilities/*.json');
+    $abilityIds = [];
+    foreach ($abilityFiles as $f) {
+        $id = (int)basename($f, '.json');
+        if ($id > 0) $abilityIds[] = $id;
+    }
+    sort($abilityIds);
+
+    $abilitiesIndex = [];
+    $processedAbilities = 0;
+
+    foreach ($abilityIds as $abilityId) {
+        $abilityJson = read_cached_json('abilities', (string)$abilityId);
+        if ($abilityJson === null) continue;
+
+        $apiName = $abilityJson['name'] ?? '';
+        $name = get_english_name($abilityJson['names'] ?? [], $apiName);
+        $generation = $abilityJson['generation']['name'] ?? '';
+        $isMainSeries = $abilityJson['is_main_series'] ?? false;
+        $effect = get_english_effect($abilityJson['effect_entries'] ?? [], null);
+        $flavorText = get_english_ability_flavor($abilityJson['flavor_text_entries'] ?? []);
+
+        // Pokemon with this ability
+        $pokemon = [];
+        foreach ($abilityJson['pokemon'] ?? [] as $p) {
+            $pokemonUrl = $p['pokemon']['url'] ?? '';
+            $pokemonId = null;
+            if (preg_match('/\/pokemon\/(\d+)\/?$/', $pokemonUrl, $m)) {
+                $pokemonId = (int)$m[1];
+            }
+            if ($pokemonId === null) continue;
+
+            $pokemon[] = [
+                'id' => $pokemonId,
+                'name' => title_case_name($p['pokemon']['name'] ?? ''),
+                'is_hidden' => $p['is_hidden'] ?? false,
+                'slot' => $p['slot'] ?? 0,
+            ];
+        }
+        usort($pokemon, fn($a, $b) => $a['id'] - $b['id']);
+
+        // Detail plist
+        $abilityDetail = [
+            'id' => $abilityId,
+            'name' => $name,
+            'generation' => $generation,
+            'is_main_series' => $isMainSeries,
+            'effect' => $effect,
+            'flavor_text' => $flavorText,
+            'pokemon' => $pokemon,
+        ];
+        write_plist(ABILITIES_DIR . "/{$abilityId}.plist", $abilityDetail);
+
+        // Index entry
+        $abilitiesIndex[] = [
+            'id' => $abilityId,
+            'name' => $name,
+            'generation' => $generation,
+            'is_main_series' => $isMainSeries,
+        ];
+
+        $processedAbilities++;
+        if ($processedAbilities % 50 === 0 || $processedAbilities === count($abilityIds)) {
+            echo "  Abilities: {$processedAbilities}/" . count($abilityIds) . "\n";
+        }
+    }
+
+    echo "Writing abilities/index.plist ({$processedAbilities} entries)...\n";
+    write_plist(ABILITIES_DIR . '/index.plist', $abilitiesIndex);
+    echo "\n";
+
+    // Process items
+    echo "--- Processing Items ---\n";
+    $itemFiles = glob(CACHE_DIR . '/items/*.json');
+    $itemCacheIds = [];
+    foreach ($itemFiles as $f) {
+        $id = (int)basename($f, '.json');
+        if ($id > 0) $itemCacheIds[] = $id;
+    }
+    sort($itemCacheIds);
+
+    $itemsIndex = [];
+    $processedItemsCount = 0;
+    $itemNameLookup = []; // id → api_name, for sprite copying
+
+    foreach ($itemCacheIds as $itemId) {
+        $itemJson = read_cached_json('items', (string)$itemId);
+        if ($itemJson === null) continue;
+
+        $apiName = $itemJson['name'] ?? '';
+        $name = get_english_name($itemJson['names'] ?? [], $apiName);
+        $category = $itemJson['category']['name'] ?? '';
+        $cost = $itemJson['cost'] ?? 0;
+        $effect = get_english_effect($itemJson['effect_entries'] ?? [], null);
+        $flavorText = get_english_item_flavor($itemJson['flavor_text_entries'] ?? []);
+        $hasSprite = file_exists(ITEM_SPRITES_SRC . "/{$apiName}.png");
+
+        $itemNameLookup[$itemId] = $apiName;
+
+        // Pokemon that hold this item
+        $heldBy = [];
+        foreach ($itemJson['held_by_pokemon'] ?? [] as $h) {
+            $pokemonUrl = $h['pokemon']['url'] ?? '';
+            $pokemonId = null;
+            if (preg_match('/\/pokemon\/(\d+)\/?$/', $pokemonUrl, $m)) {
+                $pokemonId = (int)$m[1];
+            }
+            if ($pokemonId === null) continue;
+
+            $heldBy[] = [
+                'id' => $pokemonId,
+                'name' => title_case_name($h['pokemon']['name'] ?? ''),
+            ];
+        }
+        usort($heldBy, fn($a, $b) => $a['id'] - $b['id']);
+
+        // Detail plist
+        $itemDetail = [
+            'id' => $itemId,
+            'name' => $name,
+            'api_name' => $apiName,
+            'category' => $category,
+            'cost' => $cost,
+            'effect' => $effect,
+            'flavor_text' => $flavorText,
+            'has_sprite' => $hasSprite,
+            'held_by' => $heldBy,
+        ];
+
+        // Optional fields
+        $flingPower = $itemJson['fling_power'] ?? null;
+        if ($flingPower !== null) {
+            $itemDetail['fling_power'] = $flingPower;
+        }
+        $flingEffect = $itemJson['fling_effect']['name'] ?? null;
+        if ($flingEffect !== null) {
+            $itemDetail['fling_effect'] = $flingEffect;
+        }
+
+        write_plist(ITEMS_DIR . "/{$itemId}.plist", $itemDetail);
+
+        // Index entry
+        $itemsIndex[] = [
+            'id' => $itemId,
+            'name' => $name,
+            'api_name' => $apiName,
+            'category' => $category,
+            'cost' => $cost,
+            'has_sprite' => $hasSprite,
+        ];
+
+        $processedItemsCount++;
+        if ($processedItemsCount % 100 === 0 || $processedItemsCount === count($itemCacheIds)) {
+            echo "  Items: {$processedItemsCount}/" . count($itemCacheIds) . "\n";
+        }
+    }
+
+    echo "Writing items/index.plist ({$processedItemsCount} entries)...\n";
+    write_plist(ITEMS_DIR . '/index.plist', $itemsIndex);
+    echo "\n";
+
+    // Copy item sprites
+    echo "Copying item sprites...\n";
+    $itemSpritesCopied = 0;
+    foreach ($itemNameLookup as $itemId => $apiName) {
+        $src = ITEM_SPRITES_SRC . "/{$apiName}.png";
+        if (file_exists($src)) {
+            copy($src, ITEM_SPRITES_DST . "/{$apiName}.png");
+            $itemSpritesCopied++;
+        }
+    }
+    echo "  Item sprites: {$itemSpritesCopied}\n\n";
+
     echo "=== Processing Complete ===\n";
-    echo "  Index:    " . DATA_DIR . "/index.plist ({$processed} Pokemon)\n";
-    echo "  Types:    " . DATA_DIR . "/types.plist (" . count($typesData) . " types)\n";
-    echo "  Pokemon:  " . POKEMON_DIR . "/ ({$processed} plists)\n";
-    echo "  Moves:    " . MOVES_DIR . "/ ({$processedMoves} plists)\n";
-    echo "  Sprites:  " . SPRITES_DST . "/ (front: {$spriteCounts['front']}, artwork: {$spriteCounts['artwork']}, shiny: {$spriteCounts['shiny']}, back: {$spriteCounts['back']}, female: {$spriteCounts['female']})\n";
+    echo "  Index:      " . DATA_DIR . "/index.plist ({$processed} Pokemon)\n";
+    echo "  Types:      " . DATA_DIR . "/types.plist (" . count($typesData) . " types)\n";
+    echo "  Pokemon:    " . POKEMON_DIR . "/ ({$processed} plists)\n";
+    echo "  Moves:      " . MOVES_DIR . "/ ({$processedMoves} plists)\n";
+    echo "  Abilities:  " . ABILITIES_DIR . "/ ({$processedAbilities} plists)\n";
+    echo "  Items:      " . ITEMS_DIR . "/ ({$processedItemsCount} plists)\n";
+    echo "  Sprites:    " . SPRITES_DST . "/ (front: {$spriteCounts['front']}, artwork: {$spriteCounts['artwork']}, shiny: {$spriteCounts['shiny']}, back: {$spriteCounts['back']}, female: {$spriteCounts['female']})\n";
+    echo "  Item sprites: " . ITEM_SPRITES_DST . "/ ({$itemSpritesCopied} files)\n";
 }
 
 main();
