@@ -1,6 +1,6 @@
-#import <UIKit/UIKit.h>
+#import "DetailBaseVC.h"
 
-@interface MoveDetailVC : UIViewController
+@interface MoveDetailVC : DetailBaseVC
 
 @property (nonatomic, assign) NSInteger moveID;
 

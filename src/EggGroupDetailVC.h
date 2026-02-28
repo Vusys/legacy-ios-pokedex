@@ -1,6 +1,6 @@
-#import <UIKit/UIKit.h>
+#import "DetailBaseVC.h"
 
-@interface EggGroupDetailVC : UIViewController
+@interface EggGroupDetailVC : DetailBaseVC
 
 @property (nonatomic, assign) NSInteger eggGroupID;
 

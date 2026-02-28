@@ -1,6 +1,6 @@
-#import <UIKit/UIKit.h>
+#import "DetailBaseVC.h"
 
-@interface BerryDetailVC : UIViewController
+@interface BerryDetailVC : DetailBaseVC
 
 @property (nonatomic, assign) NSInteger berryID;
 

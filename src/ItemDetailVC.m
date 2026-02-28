@@ -3,435 +3,269 @@
 #import "DataManager.h"
 #import "TypeBadgeView.h"
 #import "PokemonType.h"
-#import "TexturedBackgroundView.h"
-#import <QuartzCore/QuartzCore.h>
-
-#define CARD_MARGIN 16
-#define CARD_PADDING 14
-#define CARD_SPACING 14
-#define CARD_CORNER 8
-#define SECTION_FONT_SIZE 13
-#define BODY_FONT_SIZE 14
+#import "TextBlockCell.h"
+#import "KeyValueCell.h"
+#import "DetailSpriteCell.h"
+#import "DetailConstants.h"
 
 @interface ItemDetailVC ()
-@property (nonatomic, strong) UIScrollView *scrollView;
-@property (nonatomic, strong) TexturedBackgroundView *backgroundView;
 @property (nonatomic, strong) Item *item;
-@property (nonatomic, assign) CGFloat lastBuiltWidth;
 @end
 
 @implementation ItemDetailVC
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.lastBuiltWidth = 0;
-
-    self.backgroundView = [[TexturedBackgroundView alloc] initWithFrame:self.view.bounds];
-    self.backgroundView.autoresizingMask = UIViewAutoresizingFlexibleWidth |
-                                           UIViewAutoresizingFlexibleHeight;
-    [self.view addSubview:self.backgroundView];
-
-    self.scrollView = [[UIScrollView alloc] initWithFrame:self.view.bounds];
-    self.scrollView.autoresizingMask = UIViewAutoresizingFlexibleWidth |
-                                       UIViewAutoresizingFlexibleHeight;
-    self.scrollView.alwaysBounceVertical = YES;
-    [self.view addSubview:self.scrollView];
-
-    [self styleNavBar];
 
     if (self.itemID > 0) {
         self.item = [[DataManager sharedManager] itemDetailWithID:self.itemID];
         self.title = self.item.name ?: @"Item";
+        [self buildSections];
+        [self setupHeaderView];
+        [self.tableView reloadData];
+    } else {
+        [self showEmptyState];
     }
 }
 
-- (void)viewWillAppear:(BOOL)animated {
-    [super viewWillAppear:animated];
-    [self styleNavBar];
+- (BOOL)hasData {
+    return self.item != nil;
 }
 
-- (void)viewDidLayoutSubviews {
-    [super viewDidLayoutSubviews];
-    CGFloat w = self.view.bounds.size.width;
-    if (w > 0 && w != self.lastBuiltWidth) {
-        self.lastBuiltWidth = w;
-        [self rebuildLayout];
-    }
+- (void)navBarGradientTopColor:(CGFloat *)top bottomColor:(CGFloat *)bottom {
+    top[0] = 0.60; top[1] = 0.35; top[2] = 0.10; top[3] = 1.0;
+    bottom[0] = 0.75; bottom[1] = 0.50; bottom[2] = 0.15; bottom[3] = 1.0;
 }
 
-- (void)styleNavBar {
-    CGSize navSize = CGSizeMake(1, 44);
-    UIGraphicsBeginImageContextWithOptions(navSize, YES, 0);
-    CGContextRef ctx = UIGraphicsGetCurrentContext();
-
-    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-    CGFloat colors[] = {
-        0.60, 0.35, 0.10, 1.0,
-        0.75, 0.50, 0.15, 1.0
-    };
-    CGGradientRef gradient = CGGradientCreateWithColorComponents(colorSpace, colors, NULL, 2);
-    CGContextDrawLinearGradient(ctx, gradient,
-        CGPointMake(0, 0), CGPointMake(0, navSize.height), 0);
-    CGGradientRelease(gradient);
-    CGColorSpaceRelease(colorSpace);
-
-    UIImage *navImage = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
-
-    [self.navigationController.navigationBar setBackgroundImage:navImage
-        forBarMetrics:UIBarMetricsDefault];
-
-    self.navigationController.navigationBar.titleTextAttributes = @{
-        UITextAttributeTextColor: [UIColor whiteColor],
-        UITextAttributeTextShadowColor: [UIColor colorWithWhite:0 alpha:0.6],
-        UITextAttributeTextShadowOffset: [NSValue valueWithUIOffset:UIOffsetMake(0, -1)],
-        UITextAttributeFont: [UIFont boldSystemFontOfSize:20]
-    };
+- (NSString *)emptyStateText {
+    return @"Select an Item";
 }
 
-#pragma mark - Layout
+#pragma mark - Header View
 
-- (void)rebuildLayout {
-    for (UIView *sub in [self.scrollView.subviews copy]) {
-        [sub removeFromSuperview];
-    }
+- (void)setupHeaderView {
+    if (!self.item) return;
+    NSLog(@"[DEBUG] ItemDetailVC setupHeaderView: tableWidth=%.0f", self.tableView.bounds.size.width);
 
-    if (!self.item) {
-        CGFloat w = self.scrollView.bounds.size.width;
-        UILabel *empty = [[UILabel alloc] initWithFrame:CGRectMake(0, 100, w, 40)];
-        empty.text = @"Select an Item";
-        empty.textAlignment = NSTextAlignmentCenter;
-        empty.font = [UIFont systemFontOfSize:18];
-        empty.textColor = [UIColor grayColor];
-        empty.backgroundColor = [UIColor clearColor];
-        [self.scrollView addSubview:empty];
-        self.scrollView.contentSize = CGSizeMake(w, 200);
-        return;
-    }
-
-    CGFloat contentWidth = self.scrollView.bounds.size.width;
-    CGFloat cardWidth = contentWidth - (CARD_MARGIN * 2);
-    CGFloat y = CARD_SPACING;
-
-    y = [self buildHeaderCard:y cardWidth:cardWidth];
-    y = [self buildTeachesMoveCard:y cardWidth:cardWidth];
-    y = [self buildEffectCard:y cardWidth:cardWidth];
-    y = [self buildFlingCard:y cardWidth:cardWidth];
-    y = [self buildHeldByCard:y cardWidth:cardWidth];
-
-    y += CARD_SPACING;
-    self.scrollView.contentSize = CGSizeMake(contentWidth, y);
-}
-
-- (UIView *)createCardAtY:(CGFloat)y width:(CGFloat)width height:(CGFloat)height {
-    UIView *card = [[UIView alloc] initWithFrame:
-        CGRectMake(CARD_MARGIN, y, width, height)];
-    card.backgroundColor = [UIColor whiteColor];
-    card.layer.cornerRadius = CARD_CORNER;
-    card.layer.borderWidth = 0.5;
-    card.layer.borderColor = [[UIColor colorWithWhite:0.80 alpha:1] CGColor];
-    card.layer.shadowColor = [[UIColor blackColor] CGColor];
-    card.layer.shadowOffset = CGSizeMake(0, 2);
-    card.layer.shadowOpacity = 0.12;
-    card.layer.shadowRadius = 3;
-    return card;
-}
-
-- (UILabel *)sectionHeaderWithTitle:(NSString *)title inCard:(UIView *)card atY:(CGFloat)y {
-    CGFloat w = card.bounds.size.width - (CARD_PADDING * 2);
-    UILabel *header = [[UILabel alloc] initWithFrame:
-        CGRectMake(CARD_PADDING, y, w, 18)];
-    header.text = [title uppercaseString];
-    header.font = [UIFont boldSystemFontOfSize:SECTION_FONT_SIZE];
-    header.textColor = [UIColor colorWithWhite:0.35 alpha:1];
-    header.backgroundColor = [UIColor clearColor];
-    header.shadowColor = [UIColor colorWithWhite:1 alpha:0.8];
-    header.shadowOffset = CGSizeMake(0, 1);
-    [card addSubview:header];
-
-    UIView *sep = [[UIView alloc] initWithFrame:
-        CGRectMake(CARD_PADDING, y + 20, w, 0.5)];
-    sep.backgroundColor = [UIColor colorWithWhite:0.85 alpha:1];
-    [card addSubview:sep];
-
-    return header;
-}
-
-#pragma mark - Card Builders
-
-- (CGFloat)buildHeaderCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {
     BOOL hasSprite = self.item.hasSprite;
-    CGFloat spriteSize = hasSprite ? 48 : 0;
-    CGFloat textX = CARD_PADDING + (hasSprite ? spriteSize + 10 : 0);
-    CGFloat cardHeight = hasSprite ? MAX(90, CARD_PADDING + spriteSize + CARD_PADDING) : 90;
+    CGFloat spriteSize = 48;
+    CGFloat textX = DETAIL_CELL_PADDING + (hasSprite ? spriteSize + 10 : 0);
+    CGFloat headerHeight = hasSprite ? MAX(90, DETAIL_CELL_PADDING + spriteSize + DETAIL_CELL_PADDING) : 90;
 
-    UIView *card = [self createCardAtY:y width:cardWidth height:cardHeight];
+    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0,
+        self.tableView.bounds.size.width, headerHeight)];
 
-    // Item sprite
     if (hasSprite) {
         UIImageView *spriteView = [[UIImageView alloc] initWithFrame:
-            CGRectMake(CARD_PADDING, CARD_PADDING, spriteSize, spriteSize)];
+            CGRectMake(DETAIL_CELL_PADDING, DETAIL_CELL_PADDING, spriteSize, spriteSize)];
         spriteView.contentMode = UIViewContentModeScaleAspectFit;
-        spriteView.image = [[DataManager sharedManager]
-            spriteForItemName:self.item.apiName];
-        [card addSubview:spriteView];
+        spriteView.image = [[DataManager sharedManager] spriteForItemName:self.item.apiName];
+        [header addSubview:spriteView];
     }
 
-    // Item name
     UILabel *nameLabel = [[UILabel alloc] initWithFrame:
-        CGRectMake(textX, CARD_PADDING, cardWidth - textX - CARD_PADDING, 28)];
+        CGRectMake(textX, DETAIL_CELL_PADDING,
+                   header.bounds.size.width - textX - DETAIL_CELL_PADDING, 28)];
     nameLabel.text = self.item.name;
     nameLabel.font = [UIFont boldSystemFontOfSize:24];
     nameLabel.textColor = [UIColor darkTextColor];
     nameLabel.backgroundColor = [UIColor clearColor];
-    [card addSubview:nameLabel];
+    [header addSubview:nameLabel];
 
-    // Category
     UILabel *catLabel = [[UILabel alloc] initWithFrame:
-        CGRectMake(textX, CARD_PADDING + 32, 200, 18)];
+        CGRectMake(textX, DETAIL_CELL_PADDING + 32, 200, 18)];
     catLabel.text = [self.item categoryDisplay];
     catLabel.font = [UIFont systemFontOfSize:13];
     catLabel.textColor = [UIColor grayColor];
     catLabel.backgroundColor = [UIColor clearColor];
-    [card addSubview:catLabel];
+    [header addSubview:catLabel];
 
-    // Cost
     UILabel *costLabel = [[UILabel alloc] initWithFrame:
-        CGRectMake(textX, CARD_PADDING + 52, 200, 18)];
+        CGRectMake(textX, DETAIL_CELL_PADDING + 52, 200, 18)];
     costLabel.text = [self.item costString];
     costLabel.font = [UIFont systemFontOfSize:13];
     costLabel.textColor = [UIColor colorWithWhite:0.40 alpha:1];
     costLabel.backgroundColor = [UIColor clearColor];
-    [card addSubview:costLabel];
+    [header addSubview:costLabel];
 
-    [self.scrollView addSubview:card];
-    return y + cardHeight + CARD_SPACING;
+    self.tableView.tableHeaderView = header;
 }
 
-- (CGFloat)buildTeachesMoveCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {
-    NSDictionary *teaches = self.item.teachesMove;
-    if (!teaches) return y;
+#pragma mark - Build Sections
 
-    NSString *moveName = teaches[@"move_name"] ?: @"";
-    NSString *moveType = teaches[@"move_type"] ?: @"";
-    if (moveName.length == 0) return y;
-
-    CGFloat headerHeight = 26;
-    CGFloat rowHeight = [TypeBadgeView badgeHeight] + 8;
-    CGFloat cardHeight = CARD_PADDING + headerHeight + rowHeight + CARD_PADDING;
-    UIView *card = [self createCardAtY:y width:cardWidth height:cardHeight];
-
-    [self sectionHeaderWithTitle:@"Teaches" inCard:card atY:CARD_PADDING];
-
-    CGFloat rowY = CARD_PADDING + headerHeight + 4;
-    CGFloat x = CARD_PADDING;
-
-    // Type badge
-    if (moveType.length > 0) {
-        TypeBadgeView *badge = [[TypeBadgeView alloc] initWithTypeName:moveType];
-        badge.frame = CGRectMake(x, rowY, [TypeBadgeView badgeWidth], [TypeBadgeView badgeHeight]);
-        [card addSubview:badge];
-        x += [TypeBadgeView badgeWidth] + 8;
+- (void)buildSections {
+    if (!self.item) {
+        self.sections = @[];
+        return;
     }
 
-    // Move name
-    UILabel *nameLabel = [[UILabel alloc] initWithFrame:
-        CGRectMake(x, rowY - 2, cardWidth - x - CARD_PADDING, 24)];
-    nameLabel.text = moveName;
-    nameLabel.font = [UIFont boldSystemFontOfSize:BODY_FONT_SIZE];
-    nameLabel.textColor = [UIColor darkTextColor];
-    nameLabel.backgroundColor = [UIColor clearColor];
-    [card addSubview:nameLabel];
+    NSMutableArray *sects = [[NSMutableArray alloc] init];
+    CGFloat tableWidth = self.tableView.bounds.size.width;
 
-    [self.scrollView addSubview:card];
-    return y + cardHeight + CARD_SPACING;
+    // Effect text (no title)
+    {
+        NSString *effect = self.item.effect;
+        NSString *flavor = self.item.flavorText;
+        NSMutableString *text = [[NSMutableString alloc] init];
+        if (effect.length > 0) [text appendString:effect];
+        if (flavor.length > 0 && ![flavor isEqualToString:effect]) {
+            if (text.length > 0) [text appendString:@"\n\n"];
+            [text appendString:flavor];
+        }
+        if (text.length > 0) {
+            CGFloat h = [TextBlockCell heightForText:text width:tableWidth];
+            [sects addObject:@{
+                @"rows": @[@{@"type": @"text", @"text": [text copy], @"height": @(h)}]
+            }];
+        }
+    }
+
+    // Teaches move
+    {
+        NSDictionary *teaches = self.item.teachesMove;
+        if (teaches) {
+            NSString *moveName = teaches[@"move_name"] ?: @"";
+            NSString *moveType = teaches[@"move_type"] ?: @"";
+            if (moveName.length > 0) {
+                [sects addObject:@{
+                    @"title": @"Teaches",
+                    @"rows": @[@{
+                        @"type": @"teaches",
+                        @"moveName": moveName,
+                        @"moveType": moveType
+                    }]
+                }];
+            }
+        }
+    }
+
+    // Fling
+    {
+        if (self.item.flingPower || self.item.flingEffect) {
+            NSMutableArray *rows = [[NSMutableArray alloc] init];
+            if (self.item.flingPower) {
+                [rows addObject:@{
+                    @"type": @"keyvalue",
+                    @"key": @"Fling Power",
+                    @"value": [NSString stringWithFormat:@"%ld",
+                               (long)[self.item.flingPower integerValue]]
+                }];
+            }
+            if (self.item.flingEffect) {
+                [rows addObject:@{
+                    @"type": @"keyvalue",
+                    @"key": @"Fling Effect",
+                    @"value": [self titleCase:
+                        [self.item.flingEffect stringByReplacingOccurrencesOfString:@"-"
+                                                                         withString:@" "]]
+                }];
+            }
+            [sects addObject:@{@"title": @"Fling", @"rows": rows}];
+        }
+    }
+
+    // Held By
+    {
+        NSArray *heldBy = self.item.heldBy;
+        if (heldBy && heldBy.count > 0) {
+            NSMutableArray *rows = [[NSMutableArray alloc] init];
+            for (NSDictionary *p in heldBy) {
+                [rows addObject:@{
+                    @"type": @"sprite",
+                    @"id": p[@"id"] ?: @0,
+                    @"name": p[@"name"] ?: @"???",
+                    @"height": @(DETAIL_SPRITE_ROW_HEIGHT)
+                }];
+            }
+            [sects addObject:@{@"title": @"Held By", @"rows": rows}];
+        }
+    }
+
+    self.sections = sects;
 }
 
-- (CGFloat)buildEffectCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {
-    NSString *effect = self.item.effect;
-    NSString *flavor = self.item.flavorText;
+#pragma mark - UITableViewDataSource
 
-    NSMutableString *text = [[NSMutableString alloc] init];
-    if (effect.length > 0) {
-        [text appendString:effect];
-    }
-    if (flavor.length > 0 && ![flavor isEqualToString:effect]) {
-        if (text.length > 0) [text appendString:@"\n\n"];
-        [text appendString:flavor];
-    }
-    if (text.length == 0) return y;
+- (UITableViewCell *)tableView:(UITableView *)tableView
+         cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    NSDictionary *section = self.sections[(NSUInteger)indexPath.section];
+    NSArray *rows = section[@"rows"];
+    NSDictionary *row = rows[(NSUInteger)indexPath.row];
+    NSString *type = row[@"type"];
 
-    CGFloat textWidth = cardWidth - (CARD_PADDING * 2);
-    UIFont *font = [UIFont systemFontOfSize:BODY_FONT_SIZE];
-    CGSize textSize = [text sizeWithFont:font
-                       constrainedToSize:CGSizeMake(textWidth, 999)
-                           lineBreakMode:NSLineBreakByWordWrapping];
-
-    CGFloat cardHeight = CARD_PADDING + textSize.height + CARD_PADDING;
-    UIView *card = [self createCardAtY:y width:cardWidth height:cardHeight];
-
-    UILabel *textLabel = [[UILabel alloc] initWithFrame:
-        CGRectMake(CARD_PADDING, CARD_PADDING, textWidth, textSize.height)];
-    textLabel.text = text;
-    textLabel.font = font;
-    textLabel.textColor = [UIColor colorWithWhite:0.30 alpha:1];
-    textLabel.backgroundColor = [UIColor clearColor];
-    textLabel.numberOfLines = 0;
-    textLabel.lineBreakMode = NSLineBreakByWordWrapping;
-    [card addSubview:textLabel];
-
-    [self.scrollView addSubview:card];
-    return y + cardHeight + CARD_SPACING;
-}
-
-- (CGFloat)buildFlingCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {
-    if (!self.item.flingPower && !self.item.flingEffect) return y;
-
-    NSMutableArray *rows = [[NSMutableArray alloc] init];
-
-    if (self.item.flingPower) {
-        [rows addObject:@[@"Fling Power",
-            [NSString stringWithFormat:@"%ld", (long)[self.item.flingPower integerValue]]]];
-    }
-    if (self.item.flingEffect) {
-        [rows addObject:@[@"Fling Effect", [self titleCase:
-            [self.item.flingEffect stringByReplacingOccurrencesOfString:@"-" withString:@" "]]]];
+    if ([type isEqualToString:@"text"]) {
+        static NSString *textID = @"TextBlockCell";
+        TextBlockCell *cell = [tableView dequeueReusableCellWithIdentifier:textID];
+        if (!cell) {
+            cell = [[TextBlockCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                        reuseIdentifier:textID];
+        }
+        [cell configureWithText:row[@"text"]];
+        return cell;
     }
 
-    CGFloat rowHeight = 24;
-    CGFloat headerHeight = 26;
-    CGFloat cardHeight = CARD_PADDING + headerHeight + (rowHeight * rows.count) + CARD_PADDING;
-    UIView *card = [self createCardAtY:y width:cardWidth height:cardHeight];
+    if ([type isEqualToString:@"teaches"]) {
+        static NSString *teachID = @"TeachesCell";
+        UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:teachID];
+        if (!cell) {
+            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                           reuseIdentifier:teachID];
+            cell.selectionStyle = UITableViewCellSelectionStyleNone;
+        }
+        // Remove old subviews
+        for (UIView *sub in cell.contentView.subviews) [sub removeFromSuperview];
 
-    [self sectionHeaderWithTitle:@"Fling" inCard:card atY:CARD_PADDING];
+        CGFloat x = DETAIL_CELL_PADDING;
+        NSString *moveType = row[@"moveType"];
+        if (moveType.length > 0) {
+            TypeBadgeView *badge = [[TypeBadgeView alloc] initWithTypeName:moveType];
+            badge.frame = CGRectMake(x, (44 - [TypeBadgeView badgeHeight]) / 2,
+                                     [TypeBadgeView badgeWidth], [TypeBadgeView badgeHeight]);
+            [cell.contentView addSubview:badge];
+            x += [TypeBadgeView badgeWidth] + 8;
+        }
 
-    CGFloat rowY = CARD_PADDING + headerHeight;
-    CGFloat labelWidth = 100;
-    CGFloat valueX = CARD_PADDING + labelWidth;
-    CGFloat valueWidth = cardWidth - valueX - CARD_PADDING;
-
-    for (NSArray *row in rows) {
-        UILabel *label = [[UILabel alloc] initWithFrame:
-            CGRectMake(CARD_PADDING, rowY, labelWidth, rowHeight)];
-        label.text = row[0];
-        label.font = [UIFont boldSystemFontOfSize:BODY_FONT_SIZE];
-        label.textColor = [UIColor colorWithWhite:0.35 alpha:1];
-        label.backgroundColor = [UIColor clearColor];
-        [card addSubview:label];
-
-        UILabel *value = [[UILabel alloc] initWithFrame:
-            CGRectMake(valueX, rowY, valueWidth, rowHeight)];
-        value.text = row[1];
-        value.font = [UIFont systemFontOfSize:BODY_FONT_SIZE];
-        value.textColor = [UIColor darkTextColor];
-        value.backgroundColor = [UIColor clearColor];
-        [card addSubview:value];
-
-        rowY += rowHeight;
-    }
-
-    [self.scrollView addSubview:card];
-    return y + cardHeight + CARD_SPACING;
-}
-
-- (CGFloat)buildHeldByCard:(CGFloat)y cardWidth:(CGFloat)cardWidth {
-    NSArray *heldBy = self.item.heldBy;
-    if (!heldBy || heldBy.count == 0) return y;
-
-    NSInteger maxShow = 30;
-    NSInteger total = heldBy.count;
-    NSInteger showing = MIN(total, maxShow);
-
-    CGFloat rowHeight = 28;
-    CGFloat headerHeight = 26;
-    CGFloat countHeight = 20;
-    CGFloat cardHeight = CARD_PADDING + headerHeight + countHeight +
-                         (rowHeight * showing) + CARD_PADDING;
-    UIView *card = [self createCardAtY:y width:cardWidth height:cardHeight];
-
-    [self sectionHeaderWithTitle:@"Held By" inCard:card atY:CARD_PADDING];
-
-    // Count
-    UILabel *countLabel = [[UILabel alloc] initWithFrame:
-        CGRectMake(CARD_PADDING, CARD_PADDING + headerHeight,
-                   cardWidth - CARD_PADDING * 2, countHeight)];
-    countLabel.text = [NSString stringWithFormat:@"%ld Pokémon may hold this item",
-                       (long)total];
-    countLabel.font = [UIFont systemFontOfSize:12];
-    countLabel.textColor = [UIColor grayColor];
-    countLabel.backgroundColor = [UIColor clearColor];
-    [card addSubview:countLabel];
-
-    CGFloat rowY = CARD_PADDING + headerHeight + countHeight;
-    DataManager *dm = [DataManager sharedManager];
-
-    for (NSInteger i = 0; i < showing; i++) {
-        NSDictionary *p = heldBy[i];
-        NSInteger pokemonID = [p[@"id"] integerValue];
-        NSString *name = p[@"name"] ?: @"???";
-
-        // Sprite
-        UIImageView *sprite = [[UIImageView alloc] initWithFrame:
-            CGRectMake(CARD_PADDING, rowY + 2, 24, 24)];
-        sprite.contentMode = UIViewContentModeScaleAspectFit;
-        sprite.image = [dm spriteForPokemonID:pokemonID];
-        [card addSubview:sprite];
-
-        // Number
-        UILabel *numLabel = [[UILabel alloc] initWithFrame:
-            CGRectMake(CARD_PADDING + 30, rowY, 50, rowHeight)];
-        numLabel.text = [NSString stringWithFormat:@"#%03ld", (long)pokemonID];
-        numLabel.font = [UIFont fontWithName:@"Courier-Bold" size:12];
-        if (!numLabel.font) numLabel.font = [UIFont boldSystemFontOfSize:12];
-        numLabel.textColor = [UIColor grayColor];
-        numLabel.backgroundColor = [UIColor clearColor];
-        [card addSubview:numLabel];
-
-        // Name
         UILabel *nameLabel = [[UILabel alloc] initWithFrame:
-            CGRectMake(CARD_PADDING + 82, rowY, cardWidth - CARD_PADDING * 2 - 82, rowHeight)];
-        nameLabel.text = name;
-        nameLabel.font = [UIFont systemFontOfSize:BODY_FONT_SIZE];
+            CGRectMake(x, 0, cell.contentView.bounds.size.width - x - DETAIL_CELL_PADDING, 44)];
+        nameLabel.text = row[@"moveName"];
+        nameLabel.font = [UIFont boldSystemFontOfSize:DETAIL_BODY_FONT_SIZE];
         nameLabel.textColor = [UIColor darkTextColor];
         nameLabel.backgroundColor = [UIColor clearColor];
-        [card addSubview:nameLabel];
-
-        rowY += rowHeight;
+        nameLabel.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        [cell.contentView addSubview:nameLabel];
+        return cell;
     }
 
-    if (total > maxShow) {
-        UILabel *moreLabel = [[UILabel alloc] initWithFrame:
-            CGRectMake(CARD_PADDING, rowY, cardWidth - CARD_PADDING * 2, 20)];
-        moreLabel.text = [NSString stringWithFormat:@"...and %ld more",
-                          (long)(total - maxShow)];
-        moreLabel.font = [UIFont italicSystemFontOfSize:12];
-        moreLabel.textColor = [UIColor grayColor];
-        moreLabel.backgroundColor = [UIColor clearColor];
-        [card addSubview:moreLabel];
-
-        CGRect frame = card.frame;
-        frame.size.height += 24;
-        card.frame = frame;
-        y += 24;
+    if ([type isEqualToString:@"keyvalue"]) {
+        static NSString *kvID = @"KeyValueCell";
+        KeyValueCell *cell = [tableView dequeueReusableCellWithIdentifier:kvID];
+        if (!cell) {
+            cell = [[KeyValueCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                        reuseIdentifier:kvID];
+        }
+        [cell configureWithKey:row[@"key"] value:row[@"value"]];
+        return cell;
     }
 
-    [self.scrollView addSubview:card];
-    return y + cardHeight + CARD_SPACING;
+    // sprite
+    static NSString *spriteID = @"DetailSpriteCell";
+    DetailSpriteCell *cell = [tableView dequeueReusableCellWithIdentifier:spriteID];
+    if (!cell) {
+        cell = [[DetailSpriteCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                        reuseIdentifier:spriteID];
+    }
+    NSInteger pokemonID = [row[@"id"] integerValue];
+    UIImage *sprite = [[DataManager sharedManager] spriteForPokemonID:pokemonID];
+    [cell configureWithSprite:sprite numberID:pokemonID name:row[@"name"]];
+    return cell;
 }
 
 #pragma mark - Helpers
 
 - (NSString *)titleCase:(NSString *)str {
-    if (!str || str.length == 0) return @"—";
+    if (!str || str.length == 0) return @"\u2014";
     return [[[str substringToIndex:1] uppercaseString]
         stringByAppendingString:[str substringFromIndex:1]];
-}
-
-- (void)viewWillDisappear:(BOOL)animated {
-    [super viewWillDisappear:animated];
-    [self.navigationController.navigationBar setBackgroundImage:nil
-        forBarMetrics:UIBarMetricsDefault];
-    self.navigationController.navigationBar.titleTextAttributes = nil;
 }
 
 @end

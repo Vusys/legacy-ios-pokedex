@@ -1,6 +1,6 @@
-#import <UIKit/UIKit.h>
+#import "DetailBaseVC.h"
 
-@interface PokemonDetailVC : UIViewController
+@interface PokemonDetailVC : DetailBaseVC
 
 @property (nonatomic, assign) NSInteger pokemonID;
 

@@ -1,6 +1,6 @@
-#import <UIKit/UIKit.h>
+#import "DetailBaseVC.h"
 
-@interface NatureDetailVC : UIViewController
+@interface NatureDetailVC : DetailBaseVC
 
 @property (nonatomic, assign) NSInteger natureID;
 

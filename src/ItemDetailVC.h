@@ -1,6 +1,6 @@
-#import <UIKit/UIKit.h>
+#import "DetailBaseVC.h"
 
-@interface ItemDetailVC : UIViewController
+@interface ItemDetailVC : DetailBaseVC
 
 @property (nonatomic, assign) NSInteger itemID;
 

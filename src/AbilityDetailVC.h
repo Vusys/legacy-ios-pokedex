@@ -1,6 +1,6 @@
-#import <UIKit/UIKit.h>
+#import "DetailBaseVC.h"
 
-@interface AbilityDetailVC : UIViewController
+@interface AbilityDetailVC : DetailBaseVC
 
 @property (nonatomic, assign) NSInteger abilityID;
 
