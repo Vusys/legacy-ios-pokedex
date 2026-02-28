@@ -5,6 +5,9 @@
 @class Move;
 @class Ability;
 @class Item;
+@class Nature;
+@class EggGroup;
+@class Berry;
 
 @interface DataManager : NSObject
 
@@ -63,5 +66,30 @@
 - (UIImage *)backSpriteForPokemonID:(NSInteger)pokemonID;
 - (UIImage *)femaleSpriteForPokemonID:(NSInteger)pokemonID;
 - (UIImage *)spriteForItemName:(NSString *)apiName;
+
+// Natures (all data in single index, no separate detail plists)
+- (NSArray *)allNatureSummaries;
+- (NSArray *)searchNaturesWithQuery:(NSString *)query
+                             sortBy:(NSString *)sortBy;
+
+// Egg Groups index
+- (NSArray *)allEggGroupSummaries;
+- (NSArray *)searchEggGroupsWithQuery:(NSString *)query
+                               sortBy:(NSString *)sortBy;
+
+// Egg Group detail (loaded on demand)
+- (EggGroup *)eggGroupDetailWithID:(NSInteger)eggGroupID;
+
+// Berries index
+- (NSArray *)allBerrySummaries;
+- (NSArray *)searchBerriesWithQuery:(NSString *)query
+                              types:(NSSet *)types
+                             sortBy:(NSString *)sortBy;
+
+// Berry detail (loaded on demand)
+- (Berry *)berryDetailWithID:(NSInteger)berryID;
+
+// Berry sprite
+- (UIImage *)spriteForBerryID:(NSInteger)berryID;
 
 @end

@@ -3,6 +3,9 @@
 #import "Move.h"
 #import "Ability.h"
 #import "Item.h"
+#import "Nature.h"
+#import "EggGroup.h"
+#import "Berry.h"
 
 @interface DataManager ()
 @property (nonatomic, strong) NSArray *pokemonIndex;
@@ -15,6 +18,11 @@
 @property (nonatomic, strong) NSMutableDictionary *itemDetailCache;
 @property (nonatomic, strong) NSDictionary *pokemonNameLookup;
 @property (nonatomic, strong) NSCache *spriteCache;
+@property (nonatomic, strong) NSArray *naturesIndex;
+@property (nonatomic, strong) NSArray *eggGroupsIndex;
+@property (nonatomic, strong) NSArray *berriesIndex;
+@property (nonatomic, strong) NSMutableDictionary *eggGroupDetailCache;
+@property (nonatomic, strong) NSMutableDictionary *berryDetailCache;
 @end
 
 @implementation DataManager
@@ -37,6 +45,8 @@
         _itemDetailCache = [[NSMutableDictionary alloc] init];
         _spriteCache = [[NSCache alloc] init];
         _spriteCache.countLimit = 500;
+        _eggGroupDetailCache = [[NSMutableDictionary alloc] init];
+        _berryDetailCache = [[NSMutableDictionary alloc] init];
     }
     return self;
 }
@@ -532,6 +542,220 @@
     NSString *path = [[NSBundle mainBundle] pathForResource:apiName
                                                     ofType:@"png"
                                                inDirectory:@"sprites/items"];
+    if (!path) return nil;
+
+    UIImage *image = [[UIImage alloc] initWithContentsOfFile:path];
+    if (image) {
+        [_spriteCache setObject:image forKey:key];
+    }
+    return image;
+}
+
+#pragma mark - Natures Index
+
+- (NSArray *)allNatureSummaries {
+    if (!_naturesIndex) {
+        CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
+        NSString *path = [[NSBundle mainBundle] pathForResource:@"index"
+                                                        ofType:@"plist"
+                                                   inDirectory:@"data/natures"];
+        if (path) {
+            _naturesIndex = [NSArray arrayWithContentsOfFile:path];
+        }
+        if (!_naturesIndex) {
+            NSLog(@"WARNING: Could not load natures/index.plist");
+            _naturesIndex = @[];
+        } else {
+            NSLog(@"[PERF] DataManager loadNaturesIndex: %.1fms (%lu entries)",
+                  (CFAbsoluteTimeGetCurrent() - start) * 1000,
+                  (unsigned long)_naturesIndex.count);
+        }
+    }
+    return _naturesIndex;
+}
+
+- (NSArray *)searchNaturesWithQuery:(NSString *)query
+                             sortBy:(NSString *)sortBy {
+    NSArray *results = [self allNatureSummaries];
+
+    if (query.length > 0) {
+        NSString *lowerQuery = [query lowercaseString];
+        results = [results filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+                NSString *name = [entry[@"name"] lowercaseString];
+                return [name rangeOfString:lowerQuery].location != NSNotFound;
+            }]];
+    }
+
+    if ([sortBy isEqualToString:@"name"]) {
+        results = [results sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+            return [a[@"name"] compare:b[@"name"] options:NSCaseInsensitiveSearch];
+        }];
+    }
+
+    return results;
+}
+
+#pragma mark - Egg Groups Index
+
+- (NSArray *)allEggGroupSummaries {
+    if (!_eggGroupsIndex) {
+        CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
+        NSString *path = [[NSBundle mainBundle] pathForResource:@"index"
+                                                        ofType:@"plist"
+                                                   inDirectory:@"data/egg-groups"];
+        if (path) {
+            _eggGroupsIndex = [NSArray arrayWithContentsOfFile:path];
+        }
+        if (!_eggGroupsIndex) {
+            NSLog(@"WARNING: Could not load egg-groups/index.plist");
+            _eggGroupsIndex = @[];
+        } else {
+            NSLog(@"[PERF] DataManager loadEggGroupsIndex: %.1fms (%lu entries)",
+                  (CFAbsoluteTimeGetCurrent() - start) * 1000,
+                  (unsigned long)_eggGroupsIndex.count);
+        }
+    }
+    return _eggGroupsIndex;
+}
+
+- (NSArray *)searchEggGroupsWithQuery:(NSString *)query
+                               sortBy:(NSString *)sortBy {
+    NSArray *results = [self allEggGroupSummaries];
+
+    if (query.length > 0) {
+        NSString *lowerQuery = [query lowercaseString];
+        results = [results filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+                NSString *name = [entry[@"name"] lowercaseString];
+                return [name rangeOfString:lowerQuery].location != NSNotFound;
+            }]];
+    }
+
+    if ([sortBy isEqualToString:@"name"]) {
+        results = [results sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+            return [a[@"name"] compare:b[@"name"] options:NSCaseInsensitiveSearch];
+        }];
+    }
+
+    return results;
+}
+
+#pragma mark - Egg Group Detail
+
+- (EggGroup *)eggGroupDetailWithID:(NSInteger)eggGroupID {
+    NSNumber *key = @(eggGroupID);
+    EggGroup *cached = _eggGroupDetailCache[key];
+    if (cached) return cached;
+
+    NSString *filename = [NSString stringWithFormat:@"%ld", (long)eggGroupID];
+    NSString *path = [[NSBundle mainBundle] pathForResource:filename
+                                                    ofType:@"plist"
+                                               inDirectory:@"data/egg-groups"];
+    if (!path) return nil;
+
+    NSDictionary *dict = [NSDictionary dictionaryWithContentsOfFile:path];
+    if (!dict) return nil;
+
+    EggGroup *eggGroup = [EggGroup eggGroupFromDictionary:dict];
+    _eggGroupDetailCache[key] = eggGroup;
+    return eggGroup;
+}
+
+#pragma mark - Berries Index
+
+- (NSArray *)allBerrySummaries {
+    if (!_berriesIndex) {
+        CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
+        NSString *path = [[NSBundle mainBundle] pathForResource:@"index"
+                                                        ofType:@"plist"
+                                                   inDirectory:@"data/berries"];
+        if (path) {
+            _berriesIndex = [NSArray arrayWithContentsOfFile:path];
+        }
+        if (!_berriesIndex) {
+            NSLog(@"WARNING: Could not load berries/index.plist");
+            _berriesIndex = @[];
+        } else {
+            NSLog(@"[PERF] DataManager loadBerriesIndex: %.1fms (%lu entries)",
+                  (CFAbsoluteTimeGetCurrent() - start) * 1000,
+                  (unsigned long)_berriesIndex.count);
+        }
+    }
+    return _berriesIndex;
+}
+
+- (NSArray *)searchBerriesWithQuery:(NSString *)query
+                              types:(NSSet *)types
+                             sortBy:(NSString *)sortBy {
+    NSArray *results = [self allBerrySummaries];
+
+    // Filter by natural gift type (OR within group)
+    if (types.count > 0) {
+        results = [results filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+                return [types containsObject:entry[@"natural_gift_type"]];
+            }]];
+    }
+
+    if (query.length > 0) {
+        NSString *lowerQuery = [query lowercaseString];
+        results = [results filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+                NSString *name = [entry[@"name"] lowercaseString];
+                return [name rangeOfString:lowerQuery].location != NSNotFound;
+            }]];
+    }
+
+    if ([sortBy isEqualToString:@"name"]) {
+        results = [results sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+            return [a[@"name"] compare:b[@"name"] options:NSCaseInsensitiveSearch];
+        }];
+    } else if ([sortBy isEqualToString:@"power"]) {
+        results = [results sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+            NSInteger pa = [a[@"natural_gift_power"] integerValue];
+            NSInteger pb = [b[@"natural_gift_power"] integerValue];
+            if (pb > pa) return NSOrderedDescending;
+            if (pb < pa) return NSOrderedAscending;
+            return NSOrderedSame;
+        }];
+    }
+
+    return results;
+}
+
+#pragma mark - Berry Detail
+
+- (Berry *)berryDetailWithID:(NSInteger)berryID {
+    NSNumber *key = @(berryID);
+    Berry *cached = _berryDetailCache[key];
+    if (cached) return cached;
+
+    NSString *filename = [NSString stringWithFormat:@"%ld", (long)berryID];
+    NSString *path = [[NSBundle mainBundle] pathForResource:filename
+                                                    ofType:@"plist"
+                                               inDirectory:@"data/berries"];
+    if (!path) return nil;
+
+    NSDictionary *dict = [NSDictionary dictionaryWithContentsOfFile:path];
+    if (!dict) return nil;
+
+    Berry *berry = [Berry berryFromDictionary:dict];
+    _berryDetailCache[key] = berry;
+    return berry;
+}
+
+#pragma mark - Berry Sprite
+
+- (UIImage *)spriteForBerryID:(NSInteger)berryID {
+    NSString *key = [NSString stringWithFormat:@"berries:%ld", (long)berryID];
+    UIImage *cached = [_spriteCache objectForKey:key];
+    if (cached) return cached;
+
+    NSString *filename = [NSString stringWithFormat:@"%ld", (long)berryID];
+    NSString *path = [[NSBundle mainBundle] pathForResource:filename
+                                                    ofType:@"png"
+                                               inDirectory:@"sprites/berries"];
     if (!path) return nil;
 
     UIImage *image = [[UIImage alloc] initWithContentsOfFile:path];

@@ -13,6 +13,10 @@
  *   - All Ability data (/api/v2/ability/{id})
  *   - All Item data (/api/v2/item/{id})
  *   - Item sprite PNGs (from GitHub)
+ *   - All Nature data (/api/v2/nature/{id})
+ *   - All Egg Group data (/api/v2/egg-group/{id})
+ *   - All Berry data (/api/v2/berry/{id})
+ *   - Berry sprite PNGs (from item sprites)
  *
  * Everything is cached to tools/.cache/ so re-runs skip already-fetched data.
  *
@@ -146,7 +150,8 @@ function main(): void {
     // Ensure cache directories exist
     foreach (['pokemon', 'species', 'types', 'moves', 'move-damage-class', 'evolution-chains',
               'sprites', 'sprites-artwork', 'sprites-shiny', 'sprites-back', 'sprites-female',
-              'abilities', 'items', 'sprites-items'] as $dir) {
+              'abilities', 'items', 'sprites-items',
+              'natures', 'egg-groups', 'berries', 'sprites-berries'] as $dir) {
         $path = CACHE_DIR . '/' . $dir;
         if (!is_dir($path)) mkdir($path, 0755, true);
     }
@@ -416,6 +421,149 @@ function main(): void {
     }
     echo "\n";
 
+    // Step 12: Fetch all Nature data (25 natures)
+    echo "Fetching nature list to discover IDs...\n";
+    $natureListData = fetch_json(BASE_URL . '/nature?limit=100');
+    $totalNatures = $natureListData['count'] ?? 0;
+    $natureIds = [];
+    foreach (($natureListData['results'] ?? []) as $entry) {
+        if (preg_match('/\/nature\/(\d+)\/?$/', $entry['url'], $m)) {
+            $natureIds[] = (int)$m[1];
+        }
+    }
+    sort($natureIds);
+    echo "Total natures: {$totalNatures} (IDs discovered: " . count($natureIds) . ")\n\n";
+
+    echo "--- Fetching Nature data ---\n";
+    $fetchedNatures = 0;
+    $skippedNatures = 0;
+    $processedNatures = 0;
+    foreach ($natureIds as $id) {
+        $processedNatures++;
+        if (is_cached('natures', (string)$id)) {
+            $skippedNatures++;
+        } else {
+            $data = fetch_json_cached('natures', (string)$id, BASE_URL . "/nature/{$id}");
+            if ($data === null) {
+                echo "  WARN: Failed to fetch nature/{$id}, skipping\n";
+            }
+            $fetchedNatures++;
+        }
+
+        if ($processedNatures % 25 === 0 || $processedNatures === count($natureIds)) {
+            echo "  Natures: {$processedNatures}/" . count($natureIds) . " (fetched: {$fetchedNatures}, cached: {$skippedNatures})\n";
+        }
+    }
+    echo "\n";
+
+    // Step 13: Fetch all Egg Group data (15 egg groups)
+    echo "Fetching egg group list to discover IDs...\n";
+    $eggGroupListData = fetch_json(BASE_URL . '/egg-group?limit=100');
+    $totalEggGroups = $eggGroupListData['count'] ?? 0;
+    $eggGroupIds = [];
+    foreach (($eggGroupListData['results'] ?? []) as $entry) {
+        if (preg_match('/\/egg-group\/(\d+)\/?$/', $entry['url'], $m)) {
+            $eggGroupIds[] = (int)$m[1];
+        }
+    }
+    sort($eggGroupIds);
+    echo "Total egg groups: {$totalEggGroups} (IDs discovered: " . count($eggGroupIds) . ")\n\n";
+
+    echo "--- Fetching Egg Group data ---\n";
+    $fetchedEggGroups = 0;
+    $skippedEggGroups = 0;
+    $processedEggGroups = 0;
+    foreach ($eggGroupIds as $id) {
+        $processedEggGroups++;
+        if (is_cached('egg-groups', (string)$id)) {
+            $skippedEggGroups++;
+        } else {
+            $data = fetch_json_cached('egg-groups', (string)$id, BASE_URL . "/egg-group/{$id}");
+            if ($data === null) {
+                echo "  WARN: Failed to fetch egg-group/{$id}, skipping\n";
+            }
+            $fetchedEggGroups++;
+        }
+
+        if ($processedEggGroups === count($eggGroupIds)) {
+            echo "  Egg Groups: {$processedEggGroups}/" . count($eggGroupIds) . " (fetched: {$fetchedEggGroups}, cached: {$skippedEggGroups})\n";
+        }
+    }
+    echo "\n";
+
+    // Step 14: Fetch all Berry data (~64 berries)
+    echo "Fetching berry list to discover IDs...\n";
+    $berryListData = fetch_json(BASE_URL . '/berry?limit=200');
+    $totalBerries = $berryListData['count'] ?? 0;
+    $berryIds = [];
+    foreach (($berryListData['results'] ?? []) as $entry) {
+        if (preg_match('/\/berry\/(\d+)\/?$/', $entry['url'], $m)) {
+            $berryIds[] = (int)$m[1];
+        }
+    }
+    sort($berryIds);
+    echo "Total berries: {$totalBerries} (IDs discovered: " . count($berryIds) . ")\n\n";
+
+    echo "--- Fetching Berry data ---\n";
+    $fetchedBerries = 0;
+    $skippedBerries = 0;
+    $processedBerries = 0;
+    foreach ($berryIds as $id) {
+        $processedBerries++;
+        if (is_cached('berries', (string)$id)) {
+            $skippedBerries++;
+        } else {
+            $data = fetch_json_cached('berries', (string)$id, BASE_URL . "/berry/{$id}");
+            if ($data === null) {
+                echo "  WARN: Failed to fetch berry/{$id}, skipping\n";
+            }
+            $fetchedBerries++;
+        }
+
+        if ($processedBerries % 50 === 0 || $processedBerries === count($berryIds)) {
+            echo "  Berries: {$processedBerries}/" . count($berryIds) . " (fetched: {$fetchedBerries}, cached: {$skippedBerries})\n";
+        }
+    }
+    echo "\n";
+
+    // Step 15: Download Berry Sprites (from item sprites cache or GitHub)
+    echo "--- Downloading Berry Sprites ---\n";
+    $berrySpritesFetched = 0;
+    $berrySpritesCached = 0;
+    $berrySpritesMissing = 0;
+    foreach ($berryIds as $id) {
+        if (is_cached('sprites-berries', (string)$id, 'png')) {
+            $berrySpritesCached++;
+            continue;
+        }
+        // Read berry JSON to get API name
+        $berryJson = read_cache('berries', (string)$id);
+        if ($berryJson === null) {
+            $berrySpritesMissing++;
+            continue;
+        }
+        $berryData = json_decode($berryJson, true);
+        $berryName = $berryData['name'] ?? '';
+        $itemName = $berryName . '-berry';
+
+        // Try from existing items sprite cache first
+        if (is_cached('sprites-items', $itemName, 'png')) {
+            $spriteData = read_cache('sprites-items', $itemName, 'png');
+            write_cache('sprites-berries', (string)$id, $spriteData, 'png');
+            $berrySpritesFetched++;
+        } else {
+            $url = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/{$itemName}.png";
+            $data = fetch_cached('sprites-berries', (string)$id, $url, 'png');
+            if ($data === null) {
+                $berrySpritesMissing++;
+            } else {
+                $berrySpritesFetched++;
+            }
+        }
+    }
+    $berrySpritesTotal = $berrySpritesFetched + $berrySpritesCached;
+    echo "  Berry Sprites: {$berrySpritesTotal} total (fetched: {$berrySpritesFetched}, cached: {$berrySpritesCached}, missing: {$berrySpritesMissing})\n\n";
+
     // Summary
     echo "=== Fetch Complete ===\n";
     echo "  Pokemon:   {$totalSpecies} entries\n";
@@ -437,6 +585,10 @@ function main(): void {
     echo "  Items:     {$totalItems} entries\n";
     $itemSpritesTotal = $itemSpritesFetched + $itemSpritesCached;
     echo "  Item Sprites:   {$itemSpritesTotal} downloaded, {$itemSpritesMissing} missing\n";
+    echo "  Natures:   {$totalNatures} entries\n";
+    echo "  Egg Groups: {$totalEggGroups} entries\n";
+    echo "  Berries:   {$totalBerries} entries\n";
+    echo "  Berry Sprites:  {$berrySpritesTotal} downloaded, {$berrySpritesMissing} missing\n";
     echo "  Cache dir: " . realpath(CACHE_DIR) . "\n\n";
     echo "Next step: php tools/process.php\n";
 }

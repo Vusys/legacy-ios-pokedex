@@ -15,8 +15,14 @@
  *   src/data/abilities/{id}.plist     - Full detail per ability
  *   src/data/items/index.plist        - Lightweight array of all items
  *   src/data/items/{id}.plist         - Full detail per item
+ *   src/data/natures/index.plist      - All natures (single file with full data)
+ *   src/data/egg-groups/index.plist   - Lightweight array of all egg groups
+ *   src/data/egg-groups/{id}.plist    - Full detail per egg group
+ *   src/data/berries/index.plist      - Lightweight array of all berries
+ *   src/data/berries/{id}.plist       - Full detail per berry
  *   src/sprites/{id}.png              - Front-default sprites (copied from cache)
  *   src/sprites/items/{name}.png      - Item sprites (copied from cache)
+ *   src/sprites/berries/{id}.png      - Berry sprites (copied from cache)
  *
  * Usage: php tools/process.php
  */
@@ -40,6 +46,11 @@ define('ABILITIES_DIR', DATA_DIR . '/abilities');
 define('ITEMS_DIR', DATA_DIR . '/items');
 define('ITEM_SPRITES_SRC', CACHE_DIR . '/sprites-items');
 define('ITEM_SPRITES_DST', SRC_DIR . '/sprites/items');
+define('NATURES_DIR', DATA_DIR . '/natures');
+define('EGG_GROUPS_DIR', DATA_DIR . '/egg-groups');
+define('BERRIES_DIR', DATA_DIR . '/berries');
+define('BERRY_SPRITES_SRC', CACHE_DIR . '/sprites-berries');
+define('BERRY_SPRITES_DST', SRC_DIR . '/sprites/berries');
 
 // Standard community-agreed Pokemon type colors
 define('TYPE_COLORS', [
@@ -453,6 +464,10 @@ function main(): void {
     if (!is_dir(ABILITIES_DIR)) mkdir(ABILITIES_DIR, 0755, true);
     if (!is_dir(ITEMS_DIR)) mkdir(ITEMS_DIR, 0755, true);
     if (!is_dir(ITEM_SPRITES_DST)) mkdir(ITEM_SPRITES_DST, 0755, true);
+    if (!is_dir(NATURES_DIR)) mkdir(NATURES_DIR, 0755, true);
+    if (!is_dir(EGG_GROUPS_DIR)) mkdir(EGG_GROUPS_DIR, 0755, true);
+    if (!is_dir(BERRIES_DIR)) mkdir(BERRIES_DIR, 0755, true);
+    if (!is_dir(BERRY_SPRITES_DST)) mkdir(BERRY_SPRITES_DST, 0755, true);
 
     // Determine how many species we have cached
     $speciesFiles = glob(CACHE_DIR . '/species/*.json');
@@ -1037,6 +1052,199 @@ function main(): void {
     }
     echo "  Item sprites: {$itemSpritesCopied}\n\n";
 
+    // Process natures
+    echo "--- Processing Natures ---\n";
+    $natureFiles = glob(CACHE_DIR . '/natures/*.json');
+    $natureIds = [];
+    foreach ($natureFiles as $f) {
+        $id = (int)basename($f, '.json');
+        if ($id > 0) $natureIds[] = $id;
+    }
+    sort($natureIds);
+
+    $naturesData = [];
+    foreach ($natureIds as $natureId) {
+        $natureJson = read_cached_json('natures', (string)$natureId);
+        if (!$natureJson) continue;
+
+        $name = get_english_name($natureJson['names'] ?? [], $natureJson['name'] ?? '');
+        $increasedStat = $natureJson['increased_stat']['name'] ?? '';
+        $decreasedStat = $natureJson['decreased_stat']['name'] ?? '';
+        $likesFlavor = $natureJson['likes_flavor']['name'] ?? '';
+        $hatesFlavor = $natureJson['hates_flavor']['name'] ?? '';
+        $isNeutral = ($increasedStat === '' || $decreasedStat === ''
+                       || $increasedStat === $decreasedStat);
+
+        $naturesData[] = [
+            'id' => $natureJson['id'],
+            'name' => $name,
+            'api_name' => $natureJson['name'] ?? '',
+            'increased_stat' => $increasedStat,
+            'decreased_stat' => $decreasedStat,
+            'likes_flavor' => $likesFlavor,
+            'hates_flavor' => $hatesFlavor,
+            'is_neutral' => $isNeutral,
+        ];
+    }
+    usort($naturesData, fn($a, $b) => $a['id'] - $b['id']);
+    write_plist(NATURES_DIR . '/index.plist', $naturesData);
+    echo "  Wrote natures/index.plist (" . count($naturesData) . " natures)\n\n";
+
+    // Process egg groups
+    echo "--- Processing Egg Groups ---\n";
+    $eggGroupFiles = glob(CACHE_DIR . '/egg-groups/*.json');
+    $eggGroupIds = [];
+    foreach ($eggGroupFiles as $f) {
+        $id = (int)basename($f, '.json');
+        if ($id > 0) $eggGroupIds[] = $id;
+    }
+    sort($eggGroupIds);
+
+    $eggGroupsIndex = [];
+    foreach ($eggGroupIds as $egId) {
+        $egJson = read_cached_json('egg-groups', (string)$egId);
+        if (!$egJson) continue;
+
+        $name = get_english_name($egJson['names'] ?? [], $egJson['name'] ?? '');
+
+        // Extract pokemon species and resolve IDs
+        $pokemonSpecies = [];
+        foreach ($egJson['pokemon_species'] ?? [] as $sp) {
+            $speciesUrl = $sp['url'] ?? '';
+            $speciesId = null;
+            if (preg_match('/pokemon-species\/(\d+)/', $speciesUrl, $m)) {
+                $speciesId = (int)$m[1];
+            }
+            if ($speciesId !== null) {
+                $pokemonSpecies[] = [
+                    'id' => $speciesId,
+                    'name' => title_case_name($sp['name'] ?? ''),
+                ];
+            }
+        }
+        usort($pokemonSpecies, fn($a, $b) => $a['id'] - $b['id']);
+
+        // Detail plist
+        $egDetail = [
+            'id' => $egId,
+            'name' => $name,
+            'pokemon' => $pokemonSpecies,
+        ];
+        write_plist(EGG_GROUPS_DIR . "/{$egId}.plist", $egDetail);
+
+        // Index entry
+        $eggGroupsIndex[] = [
+            'id' => $egId,
+            'name' => $name,
+            'pokemon_count' => count($pokemonSpecies),
+        ];
+    }
+    write_plist(EGG_GROUPS_DIR . '/index.plist', $eggGroupsIndex);
+    echo "  Wrote egg-groups/index.plist (" . count($eggGroupsIndex) . " groups)\n";
+    echo "  Wrote " . count($eggGroupIds) . " detail plists\n\n";
+
+    // Process berries
+    echo "--- Processing Berries ---\n";
+    $berryFiles = glob(CACHE_DIR . '/berries/*.json');
+    $berryCacheIds = [];
+    foreach ($berryFiles as $f) {
+        $id = (int)basename($f, '.json');
+        if ($id > 0) $berryCacheIds[] = $id;
+    }
+    sort($berryCacheIds);
+
+    $berriesIndex = [];
+    $processedBerriesCount = 0;
+
+    foreach ($berryCacheIds as $berryId) {
+        $berryJson = read_cached_json('berries', (string)$berryId);
+        if (!$berryJson) continue;
+
+        $apiName = $berryJson['name'] ?? '';
+        $name = title_case_name($apiName) . ' Berry';
+        $naturalGiftType = $berryJson['natural_gift_type']['name'] ?? '';
+        $naturalGiftPower = $berryJson['natural_gift_power'] ?? 0;
+        $firmness = $berryJson['firmness']['name'] ?? '';
+        $growthTime = $berryJson['growth_time'] ?? 0;
+        $maxHarvest = $berryJson['max_harvest'] ?? 0;
+        $size = $berryJson['size'] ?? 0;
+        $smoothness = $berryJson['smoothness'] ?? 0;
+        $soilDryness = $berryJson['soil_dryness'] ?? 0;
+        $hasSprite = file_exists(BERRY_SPRITES_SRC . "/{$berryId}.png");
+
+        // Flavors
+        $flavors = [];
+        foreach ($berryJson['flavors'] ?? [] as $flavorEntry) {
+            $flavorName = $flavorEntry['flavor']['name'] ?? '';
+            $potency = $flavorEntry['potency'] ?? 0;
+            if ($flavorName) {
+                $flavors[$flavorName] = $potency;
+            }
+        }
+
+        // Get effect from associated item
+        $effect = '';
+        $flavorText = '';
+        $itemUrl = $berryJson['item']['url'] ?? '';
+        if (preg_match('/\/item\/(\d+)/', $itemUrl, $m)) {
+            $berryItemId = (int)$m[1];
+            $itemJson = read_cached_json('items', (string)$berryItemId);
+            if ($itemJson) {
+                $effect = get_english_effect($itemJson['effect_entries'] ?? [], null);
+                $flavorText = get_english_item_flavor($itemJson['flavor_text_entries'] ?? []);
+            }
+        }
+
+        // Detail plist
+        $berryDetail = [
+            'id' => $berryId,
+            'name' => $name,
+            'api_name' => $apiName,
+            'natural_gift_type' => $naturalGiftType,
+            'natural_gift_power' => $naturalGiftPower,
+            'firmness' => $firmness,
+            'growth_time' => $growthTime,
+            'max_harvest' => $maxHarvest,
+            'size' => $size,
+            'smoothness' => $smoothness,
+            'soil_dryness' => $soilDryness,
+            'has_sprite' => $hasSprite,
+            'flavors' => $flavors,
+            'effect' => $effect,
+            'flavor_text' => $flavorText,
+        ];
+        write_plist(BERRIES_DIR . "/{$berryId}.plist", $berryDetail);
+
+        // Index entry
+        $berriesIndex[] = [
+            'id' => $berryId,
+            'name' => $name,
+            'api_name' => $apiName,
+            'natural_gift_type' => $naturalGiftType,
+            'natural_gift_power' => $naturalGiftPower,
+            'firmness' => $firmness,
+            'has_sprite' => $hasSprite,
+        ];
+
+        $processedBerriesCount++;
+    }
+
+    write_plist(BERRIES_DIR . '/index.plist', $berriesIndex);
+    echo "  Wrote berries/index.plist ({$processedBerriesCount} entries)\n";
+    echo "  Wrote {$processedBerriesCount} detail plists\n\n";
+
+    // Copy berry sprites
+    echo "Copying berry sprites...\n";
+    $berrySpritesCopied = 0;
+    foreach ($berryCacheIds as $berryId) {
+        $src = BERRY_SPRITES_SRC . "/{$berryId}.png";
+        if (file_exists($src)) {
+            copy($src, BERRY_SPRITES_DST . "/{$berryId}.png");
+            $berrySpritesCopied++;
+        }
+    }
+    echo "  Berry sprites: {$berrySpritesCopied}\n\n";
+
     echo "=== Processing Complete ===\n";
     echo "  Index:      " . DATA_DIR . "/index.plist ({$processed} Pokemon)\n";
     echo "  Types:      " . DATA_DIR . "/types.plist (" . count($typesData) . " types)\n";
@@ -1046,6 +1254,10 @@ function main(): void {
     echo "  Items:      " . ITEMS_DIR . "/ ({$processedItemsCount} plists)\n";
     echo "  Sprites:    " . SPRITES_DST . "/ (front: {$spriteCounts['front']}, artwork: {$spriteCounts['artwork']}, shiny: {$spriteCounts['shiny']}, back: {$spriteCounts['back']}, female: {$spriteCounts['female']})\n";
     echo "  Item sprites: " . ITEM_SPRITES_DST . "/ ({$itemSpritesCopied} files)\n";
+    echo "  Natures:    " . NATURES_DIR . "/ (" . count($naturesData) . " natures)\n";
+    echo "  Egg Groups: " . EGG_GROUPS_DIR . "/ (" . count($eggGroupsIndex) . " groups)\n";
+    echo "  Berries:    " . BERRIES_DIR . "/ ({$processedBerriesCount} plists)\n";
+    echo "  Berry sprites: " . BERRY_SPRITES_DST . "/ ({$berrySpritesCopied} files)\n";
 }
 
 main();

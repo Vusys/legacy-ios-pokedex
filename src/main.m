@@ -7,6 +7,12 @@
 #import "AbilityDetailVC.h"
 #import "ItemListVC.h"
 #import "ItemDetailVC.h"
+#import "NatureListVC.h"
+#import "NatureDetailVC.h"
+#import "EggGroupListVC.h"
+#import "EggGroupDetailVC.h"
+#import "BerryListVC.h"
+#import "BerryDetailVC.h"
 #import "DataManager.h"
 
 // ─── AppDelegate ────────────────────────────────────────────────────
@@ -172,6 +178,124 @@
     return img;
 }
 
+// Draw up/down arrows for the Natures tab (30x30 alpha mask)
+- (UIImage *)naturesIcon {
+    CGFloat size = 30;
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+
+    [[UIColor whiteColor] setStroke];
+    [[UIColor whiteColor] setFill];
+    CGContextSetLineWidth(ctx, 2.0);
+    CGContextSetLineCap(ctx, kCGLineCapRound);
+    CGContextSetLineJoin(ctx, kCGLineJoinRound);
+
+    // Up arrow (left side) — stat increase
+    CGContextMoveToPoint(ctx, 8, 12);
+    CGContextAddLineToPoint(ctx, 8, 4);
+    CGContextStrokePath(ctx);
+    // Arrowhead
+    CGContextMoveToPoint(ctx, 4, 8);
+    CGContextAddLineToPoint(ctx, 8, 4);
+    CGContextAddLineToPoint(ctx, 12, 8);
+    CGContextStrokePath(ctx);
+
+    // Down arrow (right side) — stat decrease
+    CGContextMoveToPoint(ctx, 22, 18);
+    CGContextAddLineToPoint(ctx, 22, 26);
+    CGContextStrokePath(ctx);
+    // Arrowhead
+    CGContextMoveToPoint(ctx, 18, 22);
+    CGContextAddLineToPoint(ctx, 22, 26);
+    CGContextAddLineToPoint(ctx, 26, 22);
+    CGContextStrokePath(ctx);
+
+    // Horizontal divider
+    CGContextSetLineWidth(ctx, 1.5);
+    CGContextMoveToPoint(ctx, 3, 15);
+    CGContextAddLineToPoint(ctx, 27, 15);
+    CGContextStrokePath(ctx);
+
+    UIImage *img = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return img;
+}
+
+// Draw an egg silhouette for the Egg Groups tab (30x30 alpha mask)
+- (UIImage *)eggGroupsIcon {
+    CGFloat size = 30;
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+
+    [[UIColor whiteColor] setFill];
+
+    // Egg shape using bezier curves (wider at bottom, narrower at top)
+    CGFloat cx = size / 2.0;
+    CGMutablePathRef path = CGPathCreateMutable();
+    CGPathMoveToPoint(path, NULL, cx, 3);
+    // Right side
+    CGPathAddCurveToPoint(path, NULL, cx + 8, 3, cx + 11, 12, cx + 11, 17);
+    // Bottom right
+    CGPathAddCurveToPoint(path, NULL, cx + 11, 23, cx + 7, 27, cx, 27);
+    // Bottom left
+    CGPathAddCurveToPoint(path, NULL, cx - 7, 27, cx - 11, 23, cx - 11, 17);
+    // Left side
+    CGPathAddCurveToPoint(path, NULL, cx - 11, 12, cx - 8, 3, cx, 3);
+    CGPathCloseSubpath(path);
+
+    CGContextAddPath(ctx, path);
+    CGContextFillPath(ctx);
+    CGPathRelease(path);
+
+    UIImage *img = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return img;
+}
+
+// Draw a berry/fruit silhouette for the Berries tab (30x30 alpha mask)
+- (UIImage *)berriesIcon {
+    CGFloat size = 30;
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+
+    [[UIColor whiteColor] setFill];
+    [[UIColor whiteColor] setStroke];
+
+    // Berry body (round)
+    CGContextFillEllipseInRect(ctx, CGRectMake(6, 10, 18, 18));
+
+    // Stem
+    CGContextSetLineWidth(ctx, 2.0);
+    CGContextSetLineCap(ctx, kCGLineCapRound);
+    CGContextMoveToPoint(ctx, 15, 10);
+    CGContextAddLineToPoint(ctx, 15, 5);
+    CGContextStrokePath(ctx);
+
+    // Left leaf
+    CGMutablePathRef leaf1 = CGPathCreateMutable();
+    CGPathMoveToPoint(leaf1, NULL, 15, 6);
+    CGPathAddCurveToPoint(leaf1, NULL, 11, 3, 7, 3, 7, 6);
+    CGPathAddCurveToPoint(leaf1, NULL, 7, 8, 12, 7, 15, 6);
+    CGPathCloseSubpath(leaf1);
+    CGContextAddPath(ctx, leaf1);
+    CGContextFillPath(ctx);
+    CGPathRelease(leaf1);
+
+    // Right leaf
+    CGMutablePathRef leaf2 = CGPathCreateMutable();
+    CGPathMoveToPoint(leaf2, NULL, 15, 6);
+    CGPathAddCurveToPoint(leaf2, NULL, 19, 3, 23, 3, 23, 6);
+    CGPathAddCurveToPoint(leaf2, NULL, 23, 8, 18, 7, 15, 6);
+    CGPathCloseSubpath(leaf2);
+    CGContextAddPath(ctx, leaf2);
+    CGContextFillPath(ctx);
+    CGPathRelease(leaf2);
+
+    UIImage *img = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return img;
+}
+
 - (BOOL)application:(UIApplication *)application
     didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
 
@@ -243,9 +367,58 @@
     itemsSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Items"
         image:[self itemsIcon] tag:3];
 
+    // ─── Tab 5: Natures (split view) ───────────────────────
+    NatureListVC *natureList = [[NatureListVC alloc] init];
+    UINavigationController *natureMasterNav = [[UINavigationController alloc]
+        initWithRootViewController:natureList];
+
+    NatureDetailVC *natureDetail = [[NatureDetailVC alloc] init];
+    UINavigationController *natureDetailNav = [[UINavigationController alloc]
+        initWithRootViewController:natureDetail];
+
+    UISplitViewController *naturesSplit = [[UISplitViewController alloc] init];
+    naturesSplit.viewControllers = @[natureMasterNav, natureDetailNav];
+    naturesSplit.delegate = self;
+    naturesSplit.title = @"Natures";
+    naturesSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Natures"
+        image:[self naturesIcon] tag:4];
+
+    // ─── Tab 6: Egg Groups (split view) ─────────────────────
+    EggGroupListVC *eggGroupList = [[EggGroupListVC alloc] init];
+    UINavigationController *eggGroupMasterNav = [[UINavigationController alloc]
+        initWithRootViewController:eggGroupList];
+
+    EggGroupDetailVC *eggGroupDetail = [[EggGroupDetailVC alloc] init];
+    UINavigationController *eggGroupDetailNav = [[UINavigationController alloc]
+        initWithRootViewController:eggGroupDetail];
+
+    UISplitViewController *eggGroupsSplit = [[UISplitViewController alloc] init];
+    eggGroupsSplit.viewControllers = @[eggGroupMasterNav, eggGroupDetailNav];
+    eggGroupsSplit.delegate = self;
+    eggGroupsSplit.title = @"Egg Groups";
+    eggGroupsSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Egg Groups"
+        image:[self eggGroupsIcon] tag:5];
+
+    // ─── Tab 7: Berries (split view) ────────────────────────
+    BerryListVC *berryList = [[BerryListVC alloc] init];
+    UINavigationController *berryMasterNav = [[UINavigationController alloc]
+        initWithRootViewController:berryList];
+
+    BerryDetailVC *berryDetail = [[BerryDetailVC alloc] init];
+    UINavigationController *berryDetailNav = [[UINavigationController alloc]
+        initWithRootViewController:berryDetail];
+
+    UISplitViewController *berriesSplit = [[UISplitViewController alloc] init];
+    berriesSplit.viewControllers = @[berryMasterNav, berryDetailNav];
+    berriesSplit.delegate = self;
+    berriesSplit.title = @"Berries";
+    berriesSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Berries"
+        image:[self berriesIcon] tag:6];
+
     // ─── Tab Bar ────────────────────────────────────────────
     UITabBarController *tabBar = [[UITabBarController alloc] init];
-    tabBar.viewControllers = @[pokedexSplit, movesSplit, abilitiesSplit, itemsSplit];
+    tabBar.viewControllers = @[pokedexSplit, movesSplit, abilitiesSplit,
+        itemsSplit, naturesSplit, eggGroupsSplit, berriesSplit];
 
     self.window.rootViewController = tabBar;
     [self.window makeKeyAndVisible];

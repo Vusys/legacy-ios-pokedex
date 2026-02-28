@@ -145,42 +145,22 @@ Evolution chain data is already in each Pokémon's plist (the `evolution_chain` 
 
 ---
 
-## Phase 8: Natures, Egg Groups + Berries
+## Phase 8: Natures, Egg Groups + Berries ✓
 
-Three additional reference databases to round out the Pokédex.
+**Status: Complete (v1.2)**
 
-### Natures Tab
+### What was built
 
-- **Endpoint**: `/api/v2/nature/{id}` (25 natures)
-- **Fields**: name, increased stat (+10%), decreased stat (-10%), favorite/disliked flavor
-- Display as a grid/table: Nature → boosted stat → reduced stat → flavor preference
-- Color-code stat changes (green for boost, red for reduction)
-- 5 neutral natures (Hardy, Docile, Serious, Bashful, Quirky) where both stats are the same
-- Small dataset — could be a single scrollable screen rather than master/detail
-
-### Egg Groups Browser
-
-- **Endpoint**: `/api/v2/egg-group/{id}` (15 egg groups)
-- **Fields**: name, list of Pokémon species in the group
-- **Groups**: Monster, Water 1, Water 2, Water 3, Bug, Flying, Field, Fairy, Grass, Human-Like, Mineral, Amorphous, Ditto, Dragon, Undiscovered
-- Master list of egg groups → tap to see all compatible Pokémon with sprites
-- Note: Pokémon can belong to multiple egg groups (e.g., Bulbasaur is Monster + Grass)
-- Egg group data already exists in individual Pokémon plists (`egg_groups` field) — could add a section to Pokémon detail view linking to egg group pages
-- "Undiscovered" group contains legendaries/mythicals/baby Pokémon that cannot breed
-
-### Berries Database
-
-- **Endpoint**: `/api/v2/berry/{id}` (~64 berries)
-- **Fields**: name, growth time, max harvest, size, smoothness, soil dryness, firmness, natural gift power/type, flavors (spicy/dry/sweet/bitter/sour potency values)
-- **Berry sprites**: available via the items endpoint (`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/{name}-berry.png`)
-- Searchable master list with berry sprite, name, and natural gift type badge
-- Detail view showing growth stats, flavor profile (could visualize as a radar/bar chart), natural gift info, and game effect description
-- **Firmness categories**: very soft, soft, hard, very hard, super hard
-
-### Data Pipeline Changes
-
-- `fetch.php`: download nature, egg group, and berry data from PokeAPI
-- `process.php`: generate `natures.plist`, `egg-groups/index.plist`, `egg-groups/{id}.plist`, `berries/index.plist`, `berries/{id}.plist`, and berry sprites
+- **Natures tab** (purple nav bar): NatureListVC with 50px cells (name, neutral subtitle, +Stat green/−Stat red labels), search bar, NatureDetailVC with card layout showing header (name, neutral badge), stat effects (+10%/−10% color-coded or "no stat effect" for neutral natures), flavor preferences (likes/dislikes or "no flavor preference")
+- **Egg Groups tab** (teal nav bar): EggGroupListVC with 44px cells (name + "X Pokémon" count), search bar, EggGroupDetailVC with header card (name, count) and Pokémon list card (24px sprites, #number, name — capped at 30 rows with "...and X more" overflow)
+- **Berries tab** (pink nav bar): BerryListVC with 50px cells (32x32 berry sprite, name, natural gift TypeBadgeView, right-aligned power), search bar + filter popover (sort by number/name/power, type filter for natural gift type), BerryDetailVC with header (48px sprite, name, firmness, TypeBadgeView + power), effect/flavor text, growth stats (5 key-value rows), flavor profile (5 colored horizontal bars: spicy=red, dry=gold, sweet=pink, bitter=green, sour=blue)
+- **Models**: Nature.h/.m (stat/flavor display helpers converting API names to abbreviations), EggGroup.h/.m (id, name, pokemon array), Berry.h/.m (full berry data with firmness/growth/size display helpers)
+- **FilterPopoverVC**: added `@"berries"` mode with type filter + sort by number/name/power
+- **DataManager extended**: natures index (single plist, no separate detail), egg groups index + detail, berries index + detail + sprites via shared cache
+- **Data pipeline**: fetch.php downloads 25 natures, 15 egg groups, 64 berries, 64 berry sprites; process.php generates all plists and copies sprites
+- **Tab bar**: 7 tabs — Pokédex (pokéball), Moves (sword), Abilities (star), Items (bag), Natures (up/down arrows), Egg Groups (egg), Berries (berry)
+- **New files**: Nature.h/.m, EggGroup.h/.m, Berry.h/.m, NatureCell.h/.m, EggGroupCell.h/.m, BerryCell.h/.m, NatureListVC.h/.m, EggGroupListVC.h/.m, BerryListVC.h/.m, NatureDetailVC.h/.m, EggGroupDetailVC.h/.m, BerryDetailVC.h/.m (24 files)
+- **Modified**: DataManager.h/.m, FilterPopoverVC.m, main.m, scripts/config.sh, tools/fetch.php, tools/process.php
 
 ---
 
@@ -195,4 +175,4 @@ Three additional reference databases to round out the Pokédex.
 | 5 | Evolution chains | — (data exists) | — | Small |
 | 6 | Abilities + Items | ~367 abilities, ~2175 items | ~2175 item sprites | **Done** |
 | 7 | Audio + polish | ~1025 cries | — | Medium |
-| 8 | Natures, Egg Groups + Berries | 25 natures, 15 egg groups, ~64 berries | ~64 berry sprites | Medium |
+| 8 | Natures, Egg Groups + Berries | 25 natures, 15 egg groups, 64 berries | 64 berry sprites | **Done** |

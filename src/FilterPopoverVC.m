@@ -40,11 +40,15 @@ static NSString *generationDisplayName(NSString *gen) {
 @implementation FilterPopoverVC
 
 - (BOOL)showTypes {
-    return [_filterMode isEqualToString:@"pokemon"] || [_filterMode isEqualToString:@"moves"];
+    return [_filterMode isEqualToString:@"pokemon"] ||
+           [_filterMode isEqualToString:@"moves"] ||
+           [_filterMode isEqualToString:@"berries"];
 }
 
 - (BOOL)showGenerations {
-    return ![_filterMode isEqualToString:@"items"];
+    return [_filterMode isEqualToString:@"pokemon"] ||
+           [_filterMode isEqualToString:@"moves"] ||
+           [_filterMode isEqualToString:@"abilities"];
 }
 
 - (BOOL)showCategories {
@@ -55,6 +59,7 @@ static NSString *generationDisplayName(NSString *gen) {
     if ([_filterMode isEqualToString:@"moves"])     return @[@"Number", @"Name", @"Power"];
     if ([_filterMode isEqualToString:@"abilities"]) return @[@"Number", @"Name"];
     if ([_filterMode isEqualToString:@"items"])     return @[@"Number", @"Name", @"Cost"];
+    if ([_filterMode isEqualToString:@"berries"])   return @[@"Number", @"Name", @"Power"];
     return @[@"Number", @"Name", @"Stat Total"]; // pokemon
 }
 
@@ -62,6 +67,7 @@ static NSString *generationDisplayName(NSString *gen) {
     if ([_filterMode isEqualToString:@"moves"])     return @[@"number", @"name", @"power"];
     if ([_filterMode isEqualToString:@"abilities"]) return @[@"number", @"name"];
     if ([_filterMode isEqualToString:@"items"])     return @[@"number", @"name", @"cost"];
+    if ([_filterMode isEqualToString:@"berries"])   return @[@"number", @"name", @"power"];
     return @[@"number", @"name", @"stat_total"]; // pokemon
 }
 
