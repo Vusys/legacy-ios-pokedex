@@ -13,6 +13,81 @@
 
 @implementation AppDelegate
 
+// Draw a Pokéball silhouette for the tab bar (30x30 alpha mask)
+- (UIImage *)pokeballIcon {
+    CGFloat size = 30;
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+
+    UIColor *fill = [UIColor whiteColor];
+    [fill setFill];
+    [fill setStroke];
+    CGContextSetLineWidth(ctx, 1.5);
+
+    // Outer circle
+    CGRect ballRect = CGRectInset(CGRectMake(0, 0, size, size), 2, 2);
+    CGContextStrokeEllipseInRect(ctx, ballRect);
+
+    // Horizontal line through middle
+    CGFloat midY = size / 2.0;
+    CGContextMoveToPoint(ctx, 2, midY);
+    CGContextAddLineToPoint(ctx, size - 2, midY);
+    CGContextStrokePath(ctx);
+
+    // Center circle (filled)
+    CGFloat centerR = 4;
+    CGRect centerRect = CGRectMake(size/2 - centerR, midY - centerR, centerR*2, centerR*2);
+    CGContextFillEllipseInRect(ctx, centerRect);
+
+    UIImage *img = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return img;
+}
+
+// Draw a sword silhouette for the Moves tab (30x30 alpha mask)
+- (UIImage *)swordIcon {
+    CGFloat size = 30;
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+
+    [[UIColor whiteColor] setStroke];
+    [[UIColor whiteColor] setFill];
+    CGContextSetLineWidth(ctx, 2.0);
+    CGContextSetLineCap(ctx, kCGLineCapRound);
+
+    // Blade (diagonal from top-right to center)
+    CGContextMoveToPoint(ctx, 23, 3);
+    CGContextAddLineToPoint(ctx, 11, 15);
+    CGContextStrokePath(ctx);
+
+    // Blade tip serifs
+    CGContextMoveToPoint(ctx, 23, 3);
+    CGContextAddLineToPoint(ctx, 19, 4);
+    CGContextStrokePath(ctx);
+    CGContextMoveToPoint(ctx, 23, 3);
+    CGContextAddLineToPoint(ctx, 22, 7);
+    CGContextStrokePath(ctx);
+
+    // Cross guard
+    CGContextSetLineWidth(ctx, 2.5);
+    CGContextMoveToPoint(ctx, 7, 13);
+    CGContextAddLineToPoint(ctx, 15, 19);
+    CGContextStrokePath(ctx);
+
+    // Handle
+    CGContextSetLineWidth(ctx, 2.5);
+    CGContextMoveToPoint(ctx, 11, 15);
+    CGContextAddLineToPoint(ctx, 6, 24);
+    CGContextStrokePath(ctx);
+
+    // Pommel
+    CGContextFillEllipseInRect(ctx, CGRectMake(4, 22, 4, 4));
+
+    UIImage *img = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return img;
+}
+
 - (BOOL)application:(UIApplication *)application
     didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
 
@@ -33,7 +108,7 @@
     pokedexSplit.delegate = self;
     pokedexSplit.title = @"Pokédex";
     pokedexSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Pokédex"
-        image:nil tag:0];
+        image:[self pokeballIcon] tag:0];
 
     // ─── Tab 2: Moves (split view) ──────────────────────────
     MoveListVC *moveList = [[MoveListVC alloc] init];
@@ -50,7 +125,7 @@
     movesSplit.delegate = self;
     movesSplit.title = @"Moves";
     movesSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Moves"
-        image:nil tag:1];
+        image:[self swordIcon] tag:1];
 
     // ─── Tab Bar ────────────────────────────────────────────
     UITabBarController *tabBar = [[UITabBarController alloc] init];
