@@ -4,11 +4,14 @@
 #import "DataManager.h"
 #import "FilterState.h"
 #import "FilterPopoverVC.h"
+#import "SectionGrouper.h"
+#import "PokemonType.h"
 #import "NavBarStyle.h"
 #import <QuartzCore/QuartzCore.h>
 
 #define CELL_HEIGHT 64
 #define CELL_ID @"PokemonCell"
+#define SECTION_HEADER_HEIGHT 28
 
 @interface PokemonListVC () <UISearchDisplayDelegate, UISearchBarDelegate>
 @property (nonatomic, strong) NSArray *allPokemon;
@@ -18,6 +21,11 @@
 @property (nonatomic, strong) FilterState *filterState;
 @property (nonatomic, strong) UIPopoverController *filterPopover;
 @property (nonatomic, strong) UIBarButtonItem *filterButton;
+// Section grouping
+@property (nonatomic, strong) NSArray *sectionTitles;
+@property (nonatomic, strong) NSArray *sectionItems;
+@property (nonatomic, copy)   NSString *activeGrouping;
+@property (nonatomic, strong) UISegmentedControl *groupControl;
 @end
 
 @implementation PokemonListVC
@@ -42,20 +50,61 @@
                action:@selector(showFilterPopover:)];
     self.navigationItem.rightBarButtonItem = _filterButton;
 
+    // Compound table header: search bar + segmented control
+    CGFloat width = self.view.bounds.size.width;
+
+    UIView *headerWrapper = [[UIView alloc] initWithFrame:
+        CGRectMake(0, 0, width, 44 + 36)];
+    headerWrapper.backgroundColor = [UIColor clearColor];
+    headerWrapper.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+
     // Search bar
     UISearchBar *searchBar = [[UISearchBar alloc]
-        initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 44)];
+        initWithFrame:CGRectMake(0, 0, width, 44)];
     searchBar.placeholder = @"Search Pokémon";
     searchBar.delegate = self;
     searchBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     searchBar.tintColor = [UIColor colorWithRed:0.80 green:0.0 blue:0.0 alpha:1];
-    self.tableView.tableHeaderView = searchBar;
+    [headerWrapper addSubview:searchBar];
+
+    // Segmented control bar
+    UIView *segBar = [[UIView alloc] initWithFrame:
+        CGRectMake(0, 44, width, 36)];
+    segBar.backgroundColor = [UIColor colorWithWhite:0.93 alpha:1];
+    segBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+
+    _groupControl = [[UISegmentedControl alloc]
+        initWithItems:@[@"All", @"Gen", @"Type", @"Stats"]];
+    _groupControl.frame = CGRectMake(8, 4, width - 16, 28);
+    _groupControl.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    _groupControl.segmentedControlStyle = UISegmentedControlStyleBar;
+    _groupControl.selectedSegmentIndex = 0;
+    [_groupControl addTarget:self action:@selector(groupingChanged:)
+            forControlEvents:UIControlEventValueChanged];
+    [segBar addSubview:_groupControl];
+
+    UIView *segSep = [[UIView alloc] initWithFrame:
+        CGRectMake(0, 35.5, width, 0.5)];
+    segSep.backgroundColor = [UIColor colorWithWhite:0.80 alpha:1];
+    segSep.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [segBar addSubview:segSep];
+
+    [headerWrapper addSubview:segBar];
+    self.tableView.tableHeaderView = headerWrapper;
 
     self.searchDC = [[UISearchDisplayController alloc]
         initWithSearchBar:searchBar contentsController:self];
     self.searchDC.delegate = self;
     self.searchDC.searchResultsDataSource = self;
     self.searchDC.searchResultsDelegate = self;
+
+    // Restore saved grouping
+    NSInteger savedIndex = [[NSUserDefaults standardUserDefaults]
+        integerForKey:@"groupBy_pokemon"];
+    if (savedIndex > 0 && savedIndex < (NSInteger)_groupControl.numberOfSegments) {
+        _groupControl.selectedSegmentIndex = savedIndex;
+        [self groupingChanged:_groupControl];
+    }
 
     [[NSNotificationCenter defaultCenter]
         addObserver:self selector:@selector(favouritesDidChange:)
@@ -69,6 +118,7 @@
 - (void)favouritesDidChange:(NSNotification *)note {
     if (_filterState.showFavouritesOnly) {
         [self recomputeDisplayedPokemon];
+        [self rebuildSections];
         [self.tableView reloadData];
     }
 }
@@ -89,6 +139,58 @@
         UITextAttributeTextShadowOffset: [NSValue valueWithUIOffset:UIOffsetMake(0, -1)],
         UITextAttributeFont: [UIFont boldSystemFontOfSize:20]
     };
+}
+
+#pragma mark - Grouping
+
+- (void)groupingChanged:(UISegmentedControl *)sender {
+    NSInteger idx = sender.selectedSegmentIndex;
+    [[NSUserDefaults standardUserDefaults] setInteger:idx forKey:@"groupBy_pokemon"];
+
+    switch (idx) {
+        case 1: self.activeGrouping = @"generation"; break;
+        case 2: self.activeGrouping = @"type"; break;
+        case 3: self.activeGrouping = @"stat_total"; break;
+        default: self.activeGrouping = nil; break;
+    }
+
+    [self rebuildSections];
+    [self.tableView reloadData];
+}
+
+- (void)rebuildSections {
+    if (!_activeGrouping) {
+        self.sectionTitles = nil;
+        self.sectionItems = nil;
+        return;
+    }
+
+    NSDictionary *result;
+    if ([_activeGrouping isEqualToString:@"generation"]) {
+        result = [SectionGrouper groupSummaries:_displayedPokemon
+                                          byKey:@"generation"
+                                   sectionOrder:[SectionGrouper generationKeys]
+                                   displayNames:[SectionGrouper generationDisplayNames]];
+    } else if ([_activeGrouping isEqualToString:@"type"]) {
+        result = [SectionGrouper groupSummaries:_displayedPokemon
+                                     byArrayKey:@"types"
+                                   sectionOrder:[SectionGrouper typeKeys]
+                                   displayNames:[SectionGrouper typeDisplayNames]];
+    } else if ([_activeGrouping isEqualToString:@"stat_total"]) {
+        result = [SectionGrouper groupSummaries:_displayedPokemon
+                                          byKey:@"stat_total"
+                                         ranges:@[@200, @300, @400, @500, @600]
+                                         labels:@[@"< 200", @"200–299", @"300–399",
+                                                  @"400–499", @"500–599", @"600+"]];
+    }
+
+    self.sectionTitles = result[@"titles"];
+    self.sectionItems = result[@"items"];
+}
+
+- (BOOL)isGroupedForTableView:(UITableView *)tableView {
+    if (tableView == self.searchDisplayController.searchResultsTableView) return NO;
+    return _activeGrouping != nil && _sectionTitles.count > 0;
 }
 
 #pragma mark - Filter
@@ -124,6 +226,7 @@
         [self dismissViewControllerAnimated:YES completion:nil];
     }
     [self recomputeDisplayedPokemon];
+    [self rebuildSections];
     [self updateFilterButtonTitle];
     [self.tableView reloadData];
 }
@@ -156,17 +259,47 @@
     }
 }
 
+#pragma mark - Data Helper
+
+- (NSDictionary *)summaryForTableView:(UITableView *)tableView
+                          atIndexPath:(NSIndexPath *)indexPath {
+    if (tableView == self.searchDisplayController.searchResultsTableView) {
+        if (indexPath.row < (NSInteger)_filteredPokemon.count)
+            return _filteredPokemon[indexPath.row];
+        return nil;
+    }
+    if ([self isGroupedForTableView:tableView]) {
+        if (indexPath.section < (NSInteger)_sectionItems.count) {
+            NSArray *rows = _sectionItems[indexPath.section];
+            if (indexPath.row < (NSInteger)rows.count)
+                return rows[indexPath.row];
+        }
+        return nil;
+    }
+    if (indexPath.row < (NSInteger)_displayedPokemon.count)
+        return _displayedPokemon[indexPath.row];
+    return nil;
+}
+
 #pragma mark - UITableViewDataSource
 
-- (NSArray *)pokemonForTableView:(UITableView *)tableView {
-    if (tableView == self.searchDisplayController.searchResultsTableView) {
-        return self.filteredPokemon;
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
+    if ([self isGroupedForTableView:tableView]) {
+        return _sectionTitles.count;
     }
-    return self.displayedPokemon;
+    return 1;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return [self pokemonForTableView:tableView].count;
+    if (tableView == self.searchDisplayController.searchResultsTableView) {
+        return _filteredPokemon.count;
+    }
+    if ([self isGroupedForTableView:tableView]) {
+        if (section < (NSInteger)_sectionItems.count)
+            return [_sectionItems[section] count];
+        return 0;
+    }
+    return _displayedPokemon.count;
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -181,11 +314,105 @@
                                   reuseIdentifier:CELL_ID];
     }
 
-    NSArray *data = [self pokemonForTableView:tableView];
-    if (indexPath.row < (NSInteger)data.count) {
-        [cell configureCellWithSummary:data[indexPath.row]];
+    NSDictionary *summary = [self summaryForTableView:tableView atIndexPath:indexPath];
+    if (summary) {
+        [cell configureCellWithSummary:summary];
     }
     return cell;
+}
+
+#pragma mark - Section Headers
+
+- (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section {
+    if (![self isGroupedForTableView:tableView]) return nil;
+    if (section >= (NSInteger)_sectionTitles.count) return nil;
+
+    UIView *header = [[UIView alloc] initWithFrame:
+        CGRectMake(0, 0, tableView.bounds.size.width, SECTION_HEADER_HEIGHT)];
+    header.backgroundColor = [UIColor colorWithWhite:0.90 alpha:0.97];
+
+    UIView *sep = [[UIView alloc] initWithFrame:
+        CGRectMake(0, SECTION_HEADER_HEIGHT - 0.5,
+                   tableView.bounds.size.width, 0.5)];
+    sep.backgroundColor = [UIColor colorWithWhite:0.75 alpha:1];
+    sep.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [header addSubview:sep];
+
+    CGFloat labelX = 12;
+
+    // Add colored dot for type grouping
+    if ([_activeGrouping isEqualToString:@"type"]) {
+        NSString *title = _sectionTitles[section];
+        // Extract type name before the count suffix
+        NSRange parenRange = [title rangeOfString:@" ("];
+        NSString *typeName = (parenRange.location != NSNotFound)
+            ? [[title substringToIndex:parenRange.location] lowercaseString]
+            : [title lowercaseString];
+
+        UIView *dot = [[UIView alloc] initWithFrame:CGRectMake(12, 8, 12, 12)];
+        dot.backgroundColor = [PokemonType colorForTypeName:typeName];
+        dot.layer.cornerRadius = 2;
+        [header addSubview:dot];
+        labelX = 30;
+    }
+
+    UILabel *label = [[UILabel alloc] initWithFrame:
+        CGRectMake(labelX, 0, tableView.bounds.size.width - labelX - 12,
+                   SECTION_HEADER_HEIGHT)];
+    label.text = _sectionTitles[section];
+    label.font = [UIFont boldSystemFontOfSize:13];
+    label.textColor = [UIColor colorWithWhite:0.30 alpha:1];
+    label.shadowColor = [UIColor colorWithWhite:1.0 alpha:0.75];
+    label.shadowOffset = CGSizeMake(0, 1);
+    label.backgroundColor = [UIColor clearColor];
+    label.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    [header addSubview:label];
+
+    return header;
+}
+
+- (CGFloat)tableView:(UITableView *)tableView heightForHeaderInSection:(NSInteger)section {
+    if ([self isGroupedForTableView:tableView]) return SECTION_HEADER_HEIGHT;
+    return 0;
+}
+
+- (NSArray *)sectionIndexTitlesForTableView:(UITableView *)tableView {
+    if (![self isGroupedForTableView:tableView]) return nil;
+    if (_sectionTitles.count < 4) return nil;
+
+    if ([_activeGrouping isEqualToString:@"generation"]) {
+        // Roman numerals for generation
+        NSMutableArray *idx = [NSMutableArray array];
+        NSArray *romans = @[@"I", @"II", @"III", @"IV", @"V",
+                            @"VI", @"VII", @"VIII", @"IX"];
+        for (NSUInteger i = 0; i < _sectionTitles.count && i < romans.count; i++) {
+            [idx addObject:romans[i]];
+        }
+        return idx;
+    }
+
+    if ([_activeGrouping isEqualToString:@"type"]) {
+        // 3-letter abbreviations
+        NSMutableArray *idx = [NSMutableArray array];
+        for (NSString *title in _sectionTitles) {
+            NSRange parenRange = [title rangeOfString:@" ("];
+            NSString *name = (parenRange.location != NSNotFound)
+                ? [title substringToIndex:parenRange.location]
+                : title;
+            if (name.length >= 3)
+                [idx addObject:[[name substringToIndex:3] uppercaseString]];
+            else
+                [idx addObject:[name uppercaseString]];
+        }
+        return idx;
+    }
+
+    return nil;
+}
+
+- (NSInteger)tableView:(UITableView *)tableView
+    sectionForSectionIndexTitle:(NSString *)title atIndex:(NSInteger)index {
+    return index;
 }
 
 #pragma mark - UITableViewDelegate
@@ -193,10 +420,9 @@
 - (void)tableView:(UITableView *)tableView
     didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
 
-    NSArray *data = [self pokemonForTableView:tableView];
-    if (indexPath.row >= (NSInteger)data.count) return;
+    NSDictionary *summary = [self summaryForTableView:tableView atIndexPath:indexPath];
+    if (!summary) return;
 
-    NSDictionary *summary = data[indexPath.row];
     NSInteger pokemonID = [summary[@"id"] integerValue];
 
     PokemonDetailVC *detailVC = [[PokemonDetailVC alloc] init];
