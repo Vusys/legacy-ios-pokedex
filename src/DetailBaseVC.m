@@ -146,9 +146,9 @@
 - (void)updateFavouriteButtonIcon {
     BOOL isFav = [[DataManager sharedManager]
         isFavourite:[self favouriteEntityID] type:[self favouriteEntityType]];
-    UIImage *starImage = [self starImageFilled:isFav size:24];
+    UIImage *heartImage = [self heartImageFilled:isFav size:24];
     UIBarButtonItem *btn = [[UIBarButtonItem alloc]
-        initWithImage:starImage
+        initWithImage:heartImage
                 style:UIBarButtonItemStylePlain
                target:self
                action:@selector(toggleFavourite)];
@@ -170,31 +170,31 @@
     }
 }
 
-- (UIImage *)starImageFilled:(BOOL)filled size:(CGFloat)size {
+- (UIImage *)heartImageFilled:(BOOL)filled size:(CGFloat)size {
     UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 0);
     CGContextRef ctx = UIGraphicsGetCurrentContext();
 
-    CGFloat cx = size / 2.0;
-    CGFloat cy = size / 2.0;
-    CGFloat outerR = size * 0.48;
-    CGFloat innerR = size * 0.20;
+    CGFloat inset = size * 0.04;
+    CGFloat topY = size * 0.30;
+    CGFloat botY = size - inset;
+    CGFloat midX = size / 2.0;
 
     CGMutablePathRef path = CGPathCreateMutable();
-    for (int i = 0; i < 10; i++) {
-        CGFloat r = (i % 2 == 0) ? outerR : innerR;
-        CGFloat angle = (M_PI / 2.0) + (i * M_PI / 5.0);
-        CGFloat x = cx + r * cos(angle);
-        CGFloat y = cy - r * sin(angle);
-        if (i == 0) {
-            CGPathMoveToPoint(path, NULL, x, y);
-        } else {
-            CGPathAddLineToPoint(path, NULL, x, y);
-        }
-    }
+    CGPathMoveToPoint(path, NULL, midX, botY);
+    // Left half
+    CGPathAddCurveToPoint(path, NULL,
+        inset, size * 0.62,
+        inset, topY - size * 0.12,
+        midX, topY);
+    // Right half
+    CGPathAddCurveToPoint(path, NULL,
+        size - inset, topY - size * 0.12,
+        size - inset, size * 0.62,
+        midX, botY);
     CGPathCloseSubpath(path);
 
     if (filled) {
-        [[UIColor colorWithRed:0.85 green:0.65 blue:0.0 alpha:1] setFill];
+        [[UIColor colorWithRed:0.90 green:0.25 blue:0.30 alpha:1] setFill];
         CGContextAddPath(ctx, path);
         CGContextFillPath(ctx);
     } else {

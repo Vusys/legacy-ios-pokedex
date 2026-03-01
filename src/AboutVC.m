@@ -82,6 +82,7 @@
             @[@"Natures",    @([[dm allNatureSummaries] count])],
             @[@"Berries",    @([[dm allBerrySummaries] count])],
             @[@"Types",      @([[dm allTypes] count])],
+            @[@"Images",     @([dm totalImageCount])],
         ];
 
         for (NSArray *entry in entries) {

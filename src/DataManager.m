@@ -502,6 +502,23 @@ NSString *const FavouritesChangedNotification = @"FavouritesChangedNotification"
     return _pokemonNameLookup[@(pokemonID)] ?: @"???";
 }
 
+#pragma mark - Image Count
+
+- (NSUInteger)totalImageCount {
+    NSString *spritesDir = [[[NSBundle mainBundle] resourcePath]
+        stringByAppendingPathComponent:@"sprites"];
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSDirectoryEnumerator *enumerator = [fm enumeratorAtPath:spritesDir];
+    NSUInteger count = 0;
+    NSString *file;
+    while ((file = [enumerator nextObject])) {
+        if ([[file pathExtension] isEqualToString:@"png"]) {
+            count++;
+        }
+    }
+    return count;
+}
+
 #pragma mark - Sprite Cache
 
 - (UIImage *)spriteForPokemonID:(NSInteger)pokemonID {

@@ -75,6 +75,9 @@ extern NSString *const FavouritesChangedNotification;
 - (UIImage *)shinyArtworkForPokemonID:(NSInteger)pokemonID;
 - (UIImage *)spriteForItemName:(NSString *)apiName;
 
+// Image count (all PNGs in sprites directory tree)
+- (NSUInteger)totalImageCount;
+
 // Types data (for type effectiveness calculations)
 - (NSArray *)allTypes;
 

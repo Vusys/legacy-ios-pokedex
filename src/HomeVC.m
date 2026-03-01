@@ -38,12 +38,14 @@
     self.scrollView.alwaysBounceVertical = YES;
     [self.view addSubview:self.scrollView];
 
-    // Info button → About
-    UIButton *infoBtn = [UIButton buttonWithType:UIButtonTypeInfoLight];
-    [infoBtn addTarget:self action:@selector(showAbout)
-      forControlEvents:UIControlEventTouchUpInside];
-    self.navigationItem.rightBarButtonItem =
-        [[UIBarButtonItem alloc] initWithCustomView:infoBtn];
+    // About & Settings buttons
+    UIBarButtonItem *aboutBtn = [[UIBarButtonItem alloc]
+        initWithTitle:@"About" style:UIBarButtonItemStyleBordered
+        target:self action:@selector(showAbout)];
+    UIBarButtonItem *settingsBtn = [[UIBarButtonItem alloc]
+        initWithTitle:@"Settings" style:UIBarButtonItemStyleBordered
+        target:self action:@selector(showSettings)];
+    self.navigationItem.rightBarButtonItems = @[settingsBtn, aboutBtn];
 
     [self styleNavBar];
 
@@ -102,6 +104,16 @@
 - (void)showAbout {
     AboutVC *about = [[AboutVC alloc] init];
     [self.navigationController pushViewController:about animated:YES];
+}
+
+- (void)showSettings {
+    UIAlertView *alert = [[UIAlertView alloc]
+        initWithTitle:@"Settings"
+              message:@"Not yet implemented."
+             delegate:nil
+    cancelButtonTitle:@"OK"
+    otherButtonTitles:nil];
+    [alert show];
 }
 
 #pragma mark - Grid Layout
@@ -285,7 +297,7 @@
 - (UIImage *)iconForInfo:(NSDictionary *)info {
     NSInteger tag = [info[@"tabTag"] integerValue];
     if (tag == -1) {
-        return [self starIconWithSize:CGSizeMake(30, 30)];
+        return [self heartIconWithSize:CGSizeMake(30, 30)];
     }
 
     // Find VC with matching tag in either container type
@@ -305,32 +317,35 @@
     return nil;
 }
 
-- (UIImage *)starIconWithSize:(CGSize)size {
+- (UIImage *)heartIconWithSize:(CGSize)size {
     UIGraphicsBeginImageContextWithOptions(size, NO, 0);
     CGContextRef ctx = UIGraphicsGetCurrentContext();
 
     CGFloat w = size.width, h = size.height;
-    CGFloat cx = w / 2.0, cy = h / 2.0;
-    CGFloat outerR = MIN(w, h) / 2.0;
-    CGFloat innerR = outerR * 0.38;
+    CGFloat inset = 1.0;
 
+    // Heart shape using two cubic bezier arcs
     CGMutablePathRef path = CGPathCreateMutable();
-    for (int i = 0; i < 10; i++) {
-        CGFloat angle = (CGFloat)i * M_PI / 5.0 - M_PI / 2.0;
-        CGFloat r = (i % 2 == 0) ? outerR : innerR;
-        CGFloat px = cx + r * cosf(angle);
-        CGFloat py = cy + r * sinf(angle);
-        if (i == 0) {
-            CGPathMoveToPoint(path, NULL, px, py);
-        } else {
-            CGPathAddLineToPoint(path, NULL, px, py);
-        }
-    }
+    CGFloat topY = h * 0.30;
+    CGFloat botY = h - inset;
+    CGFloat midX = w / 2.0;
+
+    CGPathMoveToPoint(path, NULL, midX, botY);
+    // Left half
+    CGPathAddCurveToPoint(path, NULL,
+        inset, h * 0.62,
+        inset, topY - h * 0.12,
+        midX, topY);
+    // Right half
+    CGPathAddCurveToPoint(path, NULL,
+        w - inset, topY - h * 0.12,
+        w - inset, h * 0.62,
+        midX, botY);
     CGPathCloseSubpath(path);
 
     CGContextAddPath(ctx, path);
     CGContextSetFillColorWithColor(ctx,
-        [UIColor colorWithRed:1.0 green:0.8 blue:0.0 alpha:1.0].CGColor);
+        [UIColor colorWithRed:0.90 green:0.25 blue:0.30 alpha:1.0].CGColor);
     CGContextFillPath(ctx);
     CGPathRelease(path);
 
@@ -342,16 +357,15 @@
 - (UIImage *)tintImage:(UIImage *)image withColor:(UIColor *)color {
     CGSize size = image.size;
     UIGraphicsBeginImageContextWithOptions(size, NO, image.scale);
-    CGContextRef ctx = UIGraphicsGetCurrentContext();
 
     // Draw the color fill
     [color setFill];
     CGRect rect = CGRectMake(0, 0, size.width, size.height);
-    CGContextFillRect(ctx, rect);
+    UIRectFill(rect);
 
-    // Mask with the image alpha channel
-    CGContextSetBlendMode(ctx, kCGBlendModeDestinationIn);
-    CGContextDrawImage(ctx, rect, image.CGImage);
+    // Mask with the image alpha channel (drawInRect handles CG/UIKit Y-flip)
+    CGContextSetBlendMode(UIGraphicsGetCurrentContext(), kCGBlendModeDestinationIn);
+    [image drawInRect:rect];
 
     UIImage *tinted = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();

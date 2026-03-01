@@ -22,7 +22,6 @@
 @property (nonatomic, strong) NSArray *thumbnailEntries; // array of {image, label, isSprite}
 @property (nonatomic, strong) NSMutableArray *thumbnailImageViews;
 @property (nonatomic, assign) NSInteger selectedThumbnailIndex;
-@property (nonatomic, strong) UIView *scrollFadeView;
 @property (nonatomic, assign) NSInteger fullscreenIndex;
 @end
 
@@ -102,7 +101,8 @@
     BOOL hasClassification = self.pokemon.isLegendary || self.pokemon.isMythical || self.pokemon.isBaby;
     CGFloat classificationHeight = hasClassification ? 22 : 0;
     CGFloat artworkRowHeight = artworkDisplaySize + 8;
-    CGFloat thumbnailStripH = 78;
+    CGFloat thumbSize = 96;
+    CGFloat thumbnailStripH = thumbSize + 6;
     CGFloat labelH = 12;
     CGFloat headerHeight = pad + infoHeight + classificationHeight + artworkRowHeight
                            + thumbnailStripH + labelH + 4 + pad;
@@ -212,7 +212,6 @@
     cy += artworkDisplaySize + 8;
 
     // Thumbnail scroll strip
-    CGFloat thumbSize = 64;
     CGFloat thumbGap = 6;
     CGFloat stripTotalH = thumbnailStripH + labelH + 4;
 
@@ -230,20 +229,16 @@
         NSString *label = entry[@"label"];
         BOOL isSprite = [entry[@"isSprite"] boolValue];
 
-        // For pixel sprites, pre-scale to integer-ratio size for crisp rendering
-        UIImage *displayImg = img;
-        if (isSprite) {
-            displayImg = [self pixelScaledImage:img toFitSize:thumbSize];
-        }
-
         // Thumbnail image view
         UIImageView *iv = [[UIImageView alloc] initWithFrame:
             CGRectMake(tx, 4, thumbSize, thumbSize)];
         iv.clipsToBounds = YES;
 
         if (isSprite) {
+            // Show sprites at 1x (native pixel size) centered in thumbnail
             iv.contentMode = UIViewContentModeCenter;
-            iv.image = displayImg;
+            iv.image = img;
+            iv.layer.magnificationFilter = kCAFilterNearest;
         } else {
             iv.contentMode = UIViewContentModeScaleAspectFit;
             iv.image = img;
@@ -281,25 +276,6 @@
     self.thumbnailScroll.contentSize = CGSizeMake(tx, stripTotalH);
     [header addSubview:self.thumbnailScroll];
 
-    // Right-edge gradient fade to indicate scrollable content
-    if (tx > width) {
-        CGFloat fadeW = 36;
-        self.scrollFadeView = [[UIView alloc] initWithFrame:
-            CGRectMake(width - fadeW, cy, fadeW, stripTotalH)];
-        self.scrollFadeView.userInteractionEnabled = NO;
-
-        CAGradientLayer *fade = [CAGradientLayer layer];
-        fade.frame = self.scrollFadeView.bounds;
-        fade.colors = @[
-            (id)[[UIColor colorWithWhite:1.0 alpha:0.0] CGColor],
-            (id)[[UIColor colorWithWhite:1.0 alpha:0.95] CGColor]
-        ];
-        fade.startPoint = CGPointMake(0, 0.5);
-        fade.endPoint = CGPointMake(1, 0.5);
-        [self.scrollFadeView.layer addSublayer:fade];
-        [header addSubview:self.scrollFadeView];
-    }
-
     self.selectedThumbnailIndex = 0;
 
     self.headerView = header;
@@ -311,43 +287,38 @@
     NSInteger pid = self.pokemon.pokemonID;
     NSMutableArray *entries = [[NSMutableArray alloc] init];
 
-    // Artwork (full-size) comes first
+    // --- Artwork first ---
     UIImage *artwork = [dm artworkForPokemonID:pid];
     if (artwork) {
         [entries addObject:@{@"image": artwork, @"label": @"Artwork", @"isSprite": @NO}];
     }
 
-    // Front default
-    UIImage *front = [dm spriteForPokemonID:pid];
-    if (front) {
-        [entries addObject:@{@"image": front, @"label": @"Front", @"isSprite": @YES}];
-    }
-
-    // Back default
-    UIImage *back = [dm backSpriteForPokemonID:pid];
-    if (back) {
-        [entries addObject:@{@"image": back, @"label": @"Back", @"isSprite": @YES}];
-    }
-
-    // Shiny front
-    UIImage *shinyFront = [dm shinySpriteForPokemonID:pid];
-    if (shinyFront) {
-        [entries addObject:@{@"image": shinyFront, @"label": @"Shiny", @"isSprite": @YES}];
-    }
-
-    // Shiny back
-    UIImage *shinyBack = [dm backShinySpriteForPokemonID:pid];
-    if (shinyBack) {
-        [entries addObject:@{@"image": shinyBack, @"label": @"Shiny Back", @"isSprite": @YES}];
-    }
-
-    // Shiny artwork
     UIImage *shinyArt = [dm shinyArtworkForPokemonID:pid];
     if (shinyArt) {
         [entries addObject:@{@"image": shinyArt, @"label": @"Shiny Art", @"isSprite": @NO}];
     }
 
-    // Female front
+    // --- Sprites ---
+    UIImage *front = [dm spriteForPokemonID:pid];
+    if (front) {
+        [entries addObject:@{@"image": front, @"label": @"Front", @"isSprite": @YES}];
+    }
+
+    UIImage *back = [dm backSpriteForPokemonID:pid];
+    if (back) {
+        [entries addObject:@{@"image": back, @"label": @"Back", @"isSprite": @YES}];
+    }
+
+    UIImage *shinyFront = [dm shinySpriteForPokemonID:pid];
+    if (shinyFront) {
+        [entries addObject:@{@"image": shinyFront, @"label": @"Shiny", @"isSprite": @YES}];
+    }
+
+    UIImage *shinyBack = [dm backShinySpriteForPokemonID:pid];
+    if (shinyBack) {
+        [entries addObject:@{@"image": shinyBack, @"label": @"Shiny Back", @"isSprite": @YES}];
+    }
+
     if (self.pokemon.hasFemaleSprite) {
         UIImage *female = [dm femaleSpriteForPokemonID:pid];
         if (female) {
@@ -355,7 +326,6 @@
         }
     }
 
-    // Female back
     if (self.pokemon.hasBackFemaleSprite) {
         UIImage *backFemale = [dm backFemaleSpriteForPokemonID:pid];
         if (backFemale) {
@@ -363,7 +333,6 @@
         }
     }
 
-    // Shiny female
     if (self.pokemon.hasShinyFemaleSprite) {
         UIImage *shinyFemale = [dm shinyFemaleSpriteForPokemonID:pid];
         if (shinyFemale) {
@@ -371,7 +340,6 @@
         }
     }
 
-    // Shiny female back
     if (self.pokemon.hasBackShinyFemaleSprite) {
         UIImage *backShinyFemale = [dm backShinyFemaleSpriteForPokemonID:pid];
         if (backShinyFemale) {
@@ -397,14 +365,13 @@
 
     self.selectedThumbnailIndex = index;
 
-    // Update large artwork view with pixel-perfect scaling for sprites
+    // Update large artwork view — sprites at 2x, artwork scales to fit
     NSDictionary *entry = self.thumbnailEntries[(NSUInteger)index];
     UIImage *image = entry[@"image"];
     BOOL isSprite = [entry[@"isSprite"] boolValue];
 
     if (isSprite) {
-        CGFloat containerSize = self.artworkView.bounds.size.width;
-        UIImage *scaled = [self pixelScaledImage:image toFitSize:containerSize];
+        UIImage *scaled = [self pixelScaledImage:image scale:2];
         self.artworkView.image = scaled;
         self.artworkView.contentMode = UIViewContentModeCenter;
         self.artworkView.layer.magnificationFilter = kCAFilterNearest;
@@ -423,43 +390,50 @@
 
     self.fullscreenIndex = self.selectedThumbnailIndex;
 
-    UIWindow *window = self.view.window;
-    CGRect windowBounds = window.bounds;
+    // Use root VC's view so the overlay inherits the rotation transform
+    UIView *container = self.view.window.rootViewController.view;
+    CGRect bounds = container.bounds;
     CGFloat statusBarH = 20;
     CGFloat toolbarH = 44;
     CGFloat topInset = statusBarH + toolbarH;
 
-    UIView *overlay = [[UIView alloc] initWithFrame:windowBounds];
+    UIView *overlay = [[UIView alloc] initWithFrame:bounds];
     overlay.backgroundColor = [UIColor whiteColor];
     overlay.tag = 8888;
     overlay.clipsToBounds = YES;
+    overlay.autoresizingMask = UIViewAutoresizingFlexibleWidth |
+                               UIViewAutoresizingFlexibleHeight;
 
     // Start off-screen (below)
-    overlay.frame = CGRectMake(0, windowBounds.size.height,
-                               windowBounds.size.width, windowBounds.size.height);
+    overlay.frame = CGRectMake(0, bounds.size.height,
+                               bounds.size.width, bounds.size.height);
 
     // Black status bar background
     UIView *statusBg = [[UIView alloc] initWithFrame:
-        CGRectMake(0, 0, windowBounds.size.width, statusBarH)];
+        CGRectMake(0, 0, bounds.size.width, statusBarH)];
     statusBg.backgroundColor = [UIColor blackColor];
+    statusBg.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     [overlay addSubview:statusBg];
 
     // iOS-style black toolbar below status bar
     UIToolbar *toolbar = [[UIToolbar alloc] initWithFrame:
-        CGRectMake(0, statusBarH, windowBounds.size.width, toolbarH)];
+        CGRectMake(0, statusBarH, bounds.size.width, toolbarH)];
     toolbar.barStyle = UIBarStyleBlack;
     toolbar.tag = 8889;
+    toolbar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
 
     [self updateFullscreenToolbar:toolbar];
 
     [overlay addSubview:toolbar];
 
     // Image area below toolbar
-    CGRect imageArea = CGRectMake(0, topInset, windowBounds.size.width,
-                                  windowBounds.size.height - topInset);
+    CGRect imageArea = CGRectMake(0, topInset, bounds.size.width,
+                                  bounds.size.height - topInset);
     UIImageView *imageView = [[UIImageView alloc] initWithFrame:imageArea];
     imageView.backgroundColor = [UIColor whiteColor];
     imageView.tag = 8890;
+    imageView.autoresizingMask = UIViewAutoresizingFlexibleWidth |
+                                 UIViewAutoresizingFlexibleHeight;
 
     [self configureFullscreenImageView:imageView forIndex:self.fullscreenIndex];
 
@@ -476,20 +450,20 @@
     swipeRight.direction = UISwipeGestureRecognizerDirectionRight;
     [overlay addGestureRecognizer:swipeRight];
 
-    [window addSubview:overlay];
+    [container addSubview:overlay];
 
     // Slide up from bottom
     [UIView animateWithDuration:0.3
                           delay:0
                         options:UIViewAnimationOptionCurveEaseOut
                      animations:^{
-        overlay.frame = windowBounds;
+        overlay.frame = bounds;
     } completion:nil];
 }
 
 - (void)dismissFullScreenOverlay:(id)sender {
-    UIWindow *window = self.view.window;
-    UIView *overlay = [window viewWithTag:8888];
+    UIView *container = self.view.window.rootViewController.view;
+    UIView *overlay = [container viewWithTag:8888];
     if (!overlay) return;
 
     // Also update the thumbnail selection to match where the user swiped to
@@ -504,13 +478,12 @@
 
         self.selectedThumbnailIndex = self.fullscreenIndex;
 
-        // Update main artwork view too
+        // Update main artwork view too — sprites at 2x
         NSDictionary *entry = self.thumbnailEntries[(NSUInteger)self.fullscreenIndex];
         UIImage *img = entry[@"image"];
         BOOL isSprite = [entry[@"isSprite"] boolValue];
         if (isSprite) {
-            CGFloat containerSize = self.artworkView.bounds.size.width;
-            self.artworkView.image = [self pixelScaledImage:img toFitSize:containerSize];
+            self.artworkView.image = [self pixelScaledImage:img scale:2];
             self.artworkView.contentMode = UIViewContentModeCenter;
             self.artworkView.layer.magnificationFilter = kCAFilterNearest;
         } else {
@@ -520,14 +493,14 @@
         }
     }
 
-    CGRect windowBounds = window.bounds;
+    CGRect containerBounds = container.bounds;
     // Slide down off screen
     [UIView animateWithDuration:0.25
                           delay:0
                         options:UIViewAnimationOptionCurveEaseIn
                      animations:^{
-        overlay.frame = CGRectMake(0, windowBounds.size.height,
-                                   windowBounds.size.width, windowBounds.size.height);
+        overlay.frame = CGRectMake(0, containerBounds.size.height,
+                                   containerBounds.size.width, containerBounds.size.height);
     } completion:^(BOOL finished) {
         [overlay removeFromSuperview];
     }];
@@ -539,6 +512,7 @@
     BOOL isSprite = [entry[@"isSprite"] boolValue];
 
     if (isSprite) {
+        // In fullscreen, find the largest integer scale that fits
         CGFloat fitDim = MIN(imageView.bounds.size.width, imageView.bounds.size.height);
         UIImage *scaled = [self pixelScaledImage:fullImage toFitSize:fitDim];
         imageView.image = scaled;
@@ -588,7 +562,8 @@
     NSInteger newIndex = self.fullscreenIndex + direction;
     if (newIndex < 0 || (NSUInteger)newIndex >= self.thumbnailEntries.count) return;
 
-    UIView *overlay = [self.view.window viewWithTag:8888];
+    UIView *container = self.view.window.rootViewController.view;
+    UIView *overlay = [container viewWithTag:8888];
     if (!overlay) return;
 
     UIImageView *imageView = (UIImageView *)[overlay viewWithTag:8890];
@@ -635,6 +610,20 @@
 }
 
 #pragma mark - Pixel Scaling
+
+- (UIImage *)pixelScaledImage:(UIImage *)image scale:(NSInteger)scale {
+    if (scale < 1) scale = 1;
+    CGFloat w = image.size.width * scale;
+    CGFloat h = image.size.height * scale;
+
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(w, h), NO, 1.0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    CGContextSetInterpolationQuality(ctx, kCGInterpolationNone);
+    [image drawInRect:CGRectMake(0, 0, w, h)];
+    UIImage *scaled = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return scaled;
+}
 
 - (UIImage *)pixelScaledImage:(UIImage *)image toFitSize:(CGFloat)containerSize {
     CGFloat nativeSize = MAX(image.size.width, image.size.height);
@@ -1263,7 +1252,7 @@
     for (UIView *sub in cell.contentView.subviews) [sub removeFromSuperview];
 
     CGFloat pad = DETAIL_CELL_PADDING;
-    CGFloat w = cell.contentView.bounds.size.width - pad * 2;
+    CGFloat w = tableView.bounds.size.width - pad * 2;
     CGFloat cy = 8;
     NSString *versionStr = row[@"versionStr"];
     NSString *text = row[@"text"];
