@@ -108,7 +108,7 @@
     }
 
     NSMutableArray *sects = [[NSMutableArray alloc] init];
-    CGFloat tableWidth = self.tableView.bounds.size.width;
+    CGFloat tableWidth = [self cellContentWidth];
 
     // Effect text
     {

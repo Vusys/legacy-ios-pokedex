@@ -109,6 +109,20 @@
     return @"Select an item";
 }
 
+- (CGFloat)cellContentWidth {
+    CGFloat tw = self.tableView.bounds.size.width;
+    if (self.tableView.style == UITableViewStyleGrouped) {
+        /* iOS 6 grouped table view cell margins on iPad */
+        if (tw > 400) {
+            CGFloat margin = MIN(MAX(31, roundf(tw * 0.06)), 45);
+            tw -= margin * 2;
+        } else if (tw > 20) {
+            tw -= 20;
+        }
+    }
+    return tw;
+}
+
 #pragma mark - Sections
 
 - (void)buildSections {

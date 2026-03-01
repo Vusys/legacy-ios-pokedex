@@ -13,6 +13,7 @@
 - (NSString *)emptyStateText;
 - (BOOL)hasData;
 - (void)showEmptyState;
+- (CGFloat)cellContentWidth;
 
 // Favourites (subclasses override)
 - (NSString *)favouriteEntityType;
