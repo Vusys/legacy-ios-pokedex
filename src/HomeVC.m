@@ -4,6 +4,7 @@
 #import "DataManager.h"
 #import "TexturedBackgroundView.h"
 #import "NavBarStyle.h"
+#import "PokedexTabBarController.h"
 #import <QuartzCore/QuartzCore.h>
 
 #define HOME_CARD_HEIGHT  120.0f
@@ -152,7 +153,7 @@
     card.layer.shadowOpacity = 0.15f;
     card.layer.shadowOffset = CGSizeMake(0, 1);
     card.layer.shadowRadius = 3.0f;
-    card.tag = [info[@"tabIndex"] integerValue];
+    card.tag = [info[@"tabTag"] integerValue];
     [card addTarget:self action:@selector(cardTapped:)
    forControlEvents:UIControlEventTouchUpInside];
 
@@ -169,8 +170,8 @@
     // Icon (tinted gray for tabs, gold star for favourites)
     UIImage *icon = [self iconForInfo:info];
     if (icon) {
-        NSInteger tabIdx = [info[@"tabIndex"] integerValue];
-        UIImage *displayIcon = (tabIdx == -1) ? icon :
+        NSInteger tabTag = [info[@"tabTag"] integerValue];
+        UIImage *displayIcon = (tabTag == -1) ? icon :
             [self tintImage:icon
                   withColor:[UIColor colorWithWhite:0.45 alpha:1]];
         UIImageView *iconView = [[UIImageView alloc]
@@ -213,12 +214,27 @@
 
 - (void)cardTapped:(UIButton *)sender {
     if (sender.tag == -1) {
-        // Favourites card → push FavouritesVC
+        // Favourites card -> push FavouritesVC
         FavouritesVC *favVC = [[FavouritesVC alloc] initWithStyle:UITableViewStyleGrouped];
         [self.navigationController pushViewController:favVC animated:YES];
         return;
     }
-    self.tabBarController.selectedIndex = (NSUInteger)sender.tag;
+
+    // Find our container (either PokedexTabBarController or UITabBarController)
+    UIViewController *parent = self.navigationController.parentViewController;
+    if ([parent isKindOfClass:[PokedexTabBarController class]]) {
+        [(PokedexTabBarController *)parent selectTabWithTag:sender.tag];
+    } else if ([parent isKindOfClass:[UITabBarController class]]) {
+        // On iPhone, find the VC with the matching tag
+        UITabBarController *tbc = (UITabBarController *)parent;
+        for (NSUInteger i = 0; i < tbc.viewControllers.count; i++) {
+            UIViewController *vc = tbc.viewControllers[i];
+            if (vc.tabBarItem.tag == sender.tag) {
+                tbc.selectedIndex = i;
+                break;
+            }
+        }
+    }
 }
 
 - (void)cardTouchDown:(UIButton *)sender {
@@ -241,25 +257,25 @@
 
     NSUInteger favCount = [dm totalFavouriteCount];
     if (favCount > 0) {
-        [data addObject:@{@"name": @"Favourites", @"tabIndex": @(-1),
+        [data addObject:@{@"name": @"Favourites", @"tabTag": @(-1),
                           @"count": @(favCount)}];
     }
 
     [data addObjectsFromArray:@[
-        @{@"name": @"Pok\u00e9dex",    @"tabIndex": @1,
+        @{@"name": @"Pok\u00e9dex",    @"tabTag": @1,
           @"count": @([dm totalPokemonCount])},
-        @{@"name": @"Moves",       @"tabIndex": @2,
+        @{@"name": @"Moves",       @"tabTag": @2,
           @"count": @([dm totalMoveCount])},
-        @{@"name": @"Abilities",   @"tabIndex": @3,
+        @{@"name": @"Abilities",   @"tabTag": @3,
           @"count": @([[dm allAbilitySummaries] count])},
-        @{@"name": @"Items",       @"tabIndex": @4,
+        @{@"name": @"Locations",   @"tabTag": @4,
+          @"count": @([[dm allLocationSummaries] count])},
+        @{@"name": @"Items",       @"tabTag": @5,
           @"count": @([[dm allItemSummaries] count])},
-        @{@"name": @"Natures",     @"tabIndex": @5,
-          @"count": @([[dm allNatureSummaries] count])},
-        @{@"name": @"Egg Groups",  @"tabIndex": @6,
-          @"count": @([[dm allEggGroupSummaries] count])},
-        @{@"name": @"Berries",     @"tabIndex": @7,
+        @{@"name": @"Berries",     @"tabTag": @6,
           @"count": @([[dm allBerrySummaries] count])},
+        @{@"name": @"Natures",     @"tabTag": @7,
+          @"count": @([[dm allNatureSummaries] count])},
     ]];
     return data;
 }
@@ -267,14 +283,24 @@
 #pragma mark - Icons
 
 - (UIImage *)iconForInfo:(NSDictionary *)info {
-    NSInteger tabIndex = [info[@"tabIndex"] integerValue];
-    if (tabIndex == -1) {
+    NSInteger tag = [info[@"tabTag"] integerValue];
+    if (tag == -1) {
         return [self starIconWithSize:CGSizeMake(30, 30)];
     }
-    NSArray *vcs = self.tabBarController.viewControllers;
-    if ((NSUInteger)tabIndex < vcs.count) {
-        UIViewController *vc = vcs[(NSUInteger)tabIndex];
-        return vc.tabBarItem.image;
+
+    // Find VC with matching tag in either container type
+    UIViewController *parent = self.navigationController.parentViewController;
+    NSArray *vcs = nil;
+    if ([parent isKindOfClass:[PokedexTabBarController class]]) {
+        vcs = [(PokedexTabBarController *)parent childViewControllerList];
+    } else if ([parent isKindOfClass:[UITabBarController class]]) {
+        vcs = [(UITabBarController *)parent viewControllers];
+    }
+
+    for (UIViewController *vc in vcs) {
+        if (vc.tabBarItem.tag == tag) {
+            return vc.tabBarItem.image;
+        }
     }
     return nil;
 }

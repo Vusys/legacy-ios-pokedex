@@ -13,5 +13,5 @@ $SSH "cd $IPAD_PROJECT && clang -arch armv7 \
   -framework CoreGraphics \
   -framework QuartzCore \
   -o $APP_NAME \
-  *.m 2>&1"
+  \$(ls *.m | grep -v '^EggGroup[CDLS]') 2>&1"
 echo "==> Build complete."

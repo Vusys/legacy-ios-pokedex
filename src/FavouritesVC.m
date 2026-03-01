@@ -5,20 +5,19 @@
 #import "AbilityDetailVC.h"
 #import "ItemDetailVC.h"
 #import "NatureDetailVC.h"
-#import "EggGroupDetailVC.h"
 #import "BerryDetailVC.h"
 #import "TexturedBackgroundView.h"
 
 // Each section maps to one entity type
 static NSString *const kEntityTypes[] = {
     @"pokemon", @"moves", @"abilities", @"items",
-    @"natures", @"egg_groups", @"berries"
+    @"natures", @"berries"
 };
 static NSString *const kSectionTitles[] = {
     @"Pok\u00e9mon", @"Moves", @"Abilities", @"Items",
-    @"Natures", @"Egg Groups", @"Berries"
+    @"Natures", @"Berries"
 };
-static const NSUInteger kEntityCount = 7;
+static const NSUInteger kEntityCount = 6;
 
 @interface FavouritesVC ()
 @property (nonatomic, strong) NSArray *sectionTypes;   // entity type strings with favourites
@@ -83,7 +82,6 @@ static const NSUInteger kEntityCount = 7;
     if ([type isEqualToString:@"abilities"])  return [dm allAbilitySummaries];
     if ([type isEqualToString:@"items"])      return [dm allItemSummaries];
     if ([type isEqualToString:@"natures"])    return [dm allNatureSummaries];
-    if ([type isEqualToString:@"egg_groups"]) return [dm allEggGroupSummaries];
     if ([type isEqualToString:@"berries"])    return [dm allBerrySummaries];
     return @[];
 }
@@ -180,11 +178,6 @@ static const NSUInteger kEntityCount = 7;
     if ([type isEqualToString:@"natures"]) {
         NatureDetailVC *vc = [[NatureDetailVC alloc] init];
         vc.natureID = eid;
-        return vc;
-    }
-    if ([type isEqualToString:@"egg_groups"]) {
-        EggGroupDetailVC *vc = [[EggGroupDetailVC alloc] init];
-        vc.eggGroupID = eid;
         return vc;
     }
     if ([type isEqualToString:@"berries"]) {

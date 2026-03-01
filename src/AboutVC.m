@@ -80,7 +80,6 @@
             @[@"Abilities",  @([[dm allAbilitySummaries] count])],
             @[@"Items",      @([[dm allItemSummaries] count])],
             @[@"Natures",    @([[dm allNatureSummaries] count])],
-            @[@"Egg Groups", @([[dm allEggGroupSummaries] count])],
             @[@"Berries",    @([[dm allBerrySummaries] count])],
             @[@"Types",      @([[dm allTypes] count])],
         ];
