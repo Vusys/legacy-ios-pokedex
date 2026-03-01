@@ -34,8 +34,8 @@
 - (NSInteger)favouriteEntityID { return self.abilityID; }
 
 - (void)navBarGradientTopColor:(CGFloat *)top bottomColor:(CGFloat *)bottom {
-    top[0] = 0.15; top[1] = 0.40; top[2] = 0.20; top[3] = 1.0;
-    bottom[0] = 0.25; bottom[1] = 0.55; bottom[2] = 0.30; bottom[3] = 1.0;
+    top[0] = 0.55; top[1] = 0.48; top[2] = 0.08; top[3] = 1.0;
+    bottom[0] = 0.72; bottom[1] = 0.62; bottom[2] = 0.12; bottom[3] = 1.0;
 }
 
 - (NSString *)emptyStateText {
@@ -94,7 +94,7 @@
 
         if (text.length > 0) {
             CGFloat h = [TextBlockCell heightForText:text
-                                               width:self.tableView.bounds.size.width];
+                                               width:[self cellContentWidth]];
             [sects addObject:@{
                 @"rows": @[@{
                     @"type": @"text",

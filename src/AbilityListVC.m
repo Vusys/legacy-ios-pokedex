@@ -55,7 +55,7 @@
     searchBar.placeholder = @"Search Abilities";
     searchBar.delegate = self;
     searchBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    searchBar.tintColor = [UIColor colorWithRed:0.25 green:0.55 blue:0.30 alpha:1];
+    searchBar.tintColor = [UIColor colorWithRed:0.72 green:0.62 blue:0.12 alpha:1];
     self.tableView.tableHeaderView = searchBar;
 
     self.searchDC = [[UISearchDisplayController alloc]
@@ -92,7 +92,7 @@
 
 - (void)styleNavBar {
     [self.navigationController.navigationBar
-        setBackgroundImage:NavBarGradientImage(0.15, 0.40, 0.20, 0.25, 0.55, 0.30)
+        setBackgroundImage:NavBarGradientImage(0.55, 0.48, 0.08, 0.72, 0.62, 0.12)
              forBarMetrics:UIBarMetricsDefault];
 
     self.navigationController.navigationBar.titleTextAttributes = @{
