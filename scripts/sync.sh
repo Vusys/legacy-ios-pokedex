@@ -28,4 +28,9 @@ if [ -d sprites ]; then
     tar cf - sprites/ | $SSH "cd $IPAD_PROJECT && tar xf -"
 fi
 
+# Sync textures
+if [ -d textures ]; then
+    tar cf - textures/ | $SSH "cd $IPAD_PROJECT && tar xf -"
+fi
+
 echo "==> Sync complete."
