@@ -536,6 +536,9 @@
         [sects addObject:@{@"title": @"Breeding", @"rows": rows}];
     }
 
+    // Encounters
+    [self buildEncounterSections:sects];
+
     // Evolution
     [self buildEvolutionSection:sects];
 
@@ -629,6 +632,87 @@
         }];
     }
     [sects addObject:@{@"title": @"Type Effectiveness", @"rows": rows}];
+}
+
+- (void)buildEncounterSections:(NSMutableArray *)sects {
+    NSArray *encounters = [[DataManager sharedManager] encounterDataForPokemonID:self.pokemonID];
+    if (!encounters || encounters.count == 0) return;
+
+    NSUInteger maxVersions = 8;
+    NSUInteger maxLocationsPerVersion = 10;
+    NSUInteger totalVersions = encounters.count;
+    NSUInteger versionsToShow = MIN(totalVersions, maxVersions);
+
+    for (NSUInteger i = 0; i < versionsToShow; i++) {
+        NSDictionary *versionEntry = encounters[i];
+        NSString *versionName = versionEntry[@"version"] ?: @"Unknown";
+        NSArray *locations = versionEntry[@"locations"] ?: @[];
+
+        NSMutableArray *rows = [[NSMutableArray alloc] init];
+        NSUInteger locCount = MIN(locations.count, maxLocationsPerVersion);
+
+        for (NSUInteger j = 0; j < locCount; j++) {
+            NSDictionary *loc = locations[j];
+            NSString *locationName = loc[@"location"] ?: @"Unknown";
+            NSString *method = loc[@"method"] ?: @"";
+            NSInteger minLevel = [loc[@"min_level"] integerValue];
+            NSInteger maxLevel = [loc[@"max_level"] integerValue];
+            NSInteger chance = [loc[@"chance"] integerValue];
+
+            NSMutableString *detail = [[NSMutableString alloc] init];
+            if (method.length > 0) {
+                [detail appendString:method];
+            }
+            if (minLevel > 0 || maxLevel > 0) {
+                if (detail.length > 0) [detail appendString:@", "];
+                if (minLevel == maxLevel) {
+                    [detail appendFormat:@"Lv. %ld", (long)minLevel];
+                } else {
+                    [detail appendFormat:@"Lv. %ld\u2013%ld", (long)minLevel, (long)maxLevel];
+                }
+            }
+            if (chance > 0) {
+                [detail appendFormat:@" (%ld%%)", (long)chance];
+            }
+
+            [rows addObject:@{
+                @"type": @"keyvalue",
+                @"key": locationName,
+                @"value": detail
+            }];
+        }
+
+        if (locations.count > maxLocationsPerVersion) {
+            NSUInteger extra = locations.count - maxLocationsPerVersion;
+            [rows addObject:@{
+                @"type": @"keyvalue",
+                @"key": @"",
+                @"value": [NSString stringWithFormat:@"...and %lu more location%s",
+                    (unsigned long)extra, extra == 1 ? "" : "s"]
+            }];
+        }
+
+        // First version section gets "Encounters" prefix in title
+        NSString *title;
+        if (i == 0) {
+            title = [NSString stringWithFormat:@"Encounters \u2014 %@", versionName];
+        } else {
+            title = versionName;
+        }
+        [sects addObject:@{@"title": title, @"rows": rows}];
+    }
+
+    if (totalVersions > maxVersions) {
+        NSUInteger extra = totalVersions - maxVersions;
+        NSMutableArray *rows = [[NSMutableArray alloc] init];
+        [rows addObject:@{
+            @"type": @"keyvalue",
+            @"key": @"",
+            @"value": [NSString stringWithFormat:@"Also appears in %lu other game%s",
+                (unsigned long)extra, extra == 1 ? "" : "s"]
+        }];
+        [sects addObject:@{@"rows": rows}];
+    }
 }
 
 - (void)buildEvolutionSection:(NSMutableArray *)sects {

@@ -23,6 +23,7 @@
  *   src/sprites/{id}.png              - Front-default sprites (copied from cache)
  *   src/sprites/items/{name}.png      - Item sprites (copied from cache)
  *   src/sprites/berries/{id}.png      - Berry sprites (copied from cache)
+ *   src/data/encounters/{id}.plist    - Encounter data per Pokemon (only for those with wild encounters)
  *
  * Usage: php tools/process.php
  */
@@ -51,6 +52,7 @@ define('EGG_GROUPS_DIR', DATA_DIR . '/egg-groups');
 define('BERRIES_DIR', DATA_DIR . '/berries');
 define('BERRY_SPRITES_SRC', CACHE_DIR . '/sprites-berries');
 define('BERRY_SPRITES_DST', SRC_DIR . '/sprites/berries');
+define('ENCOUNTERS_DIR', DATA_DIR . '/encounters');
 
 // Standard community-agreed Pokemon type colors
 define('TYPE_COLORS', [
@@ -572,6 +574,98 @@ function get_english_item_flavor(array $entries): string {
     return '';
 }
 
+// ─── Encounter Data Helpers ─────────────────────────────────────────
+
+/**
+ * Map game version API slugs to display names.
+ */
+function version_display_name(string $slug): string {
+    static $names = [
+        'red' => 'Red', 'blue' => 'Blue', 'yellow' => 'Yellow',
+        'gold' => 'Gold', 'silver' => 'Silver', 'crystal' => 'Crystal',
+        'ruby' => 'Ruby', 'sapphire' => 'Sapphire', 'emerald' => 'Emerald',
+        'firered' => 'FireRed', 'leafgreen' => 'LeafGreen',
+        'diamond' => 'Diamond', 'pearl' => 'Pearl', 'platinum' => 'Platinum',
+        'heartgold' => 'HeartGold', 'soulsilver' => 'SoulSilver',
+        'black' => 'Black', 'white' => 'White',
+        'black-2' => 'Black 2', 'white-2' => 'White 2',
+        'x' => 'X', 'y' => 'Y',
+        'omega-ruby' => 'Omega Ruby', 'alpha-sapphire' => 'Alpha Sapphire',
+        'sun' => 'Sun', 'moon' => 'Moon',
+        'ultra-sun' => 'Ultra Sun', 'ultra-moon' => 'Ultra Moon',
+        'lets-go-pikachu' => "Let's Go Pikachu", 'lets-go-eevee' => "Let's Go Eevee",
+        'sword' => 'Sword', 'shield' => 'Shield',
+        'brilliant-diamond' => 'Brilliant Diamond', 'shining-pearl' => 'Shining Pearl',
+        'legends-arceus' => 'Legends: Arceus',
+        'scarlet' => 'Scarlet', 'violet' => 'Violet',
+    ];
+    return $names[$slug] ?? title_case_name($slug);
+}
+
+/**
+ * Return a numeric sort order for game versions (chronological).
+ */
+function version_sort_order(string $slug): int {
+    static $order = [
+        'red' => 1, 'blue' => 2, 'yellow' => 3,
+        'gold' => 4, 'silver' => 5, 'crystal' => 6,
+        'ruby' => 7, 'sapphire' => 8, 'emerald' => 9,
+        'firered' => 10, 'leafgreen' => 11,
+        'diamond' => 12, 'pearl' => 13, 'platinum' => 14,
+        'heartgold' => 15, 'soulsilver' => 16,
+        'black' => 17, 'white' => 18,
+        'black-2' => 19, 'white-2' => 20,
+        'x' => 21, 'y' => 22,
+        'omega-ruby' => 23, 'alpha-sapphire' => 24,
+        'sun' => 25, 'moon' => 26,
+        'ultra-sun' => 27, 'ultra-moon' => 28,
+        'lets-go-pikachu' => 29, 'lets-go-eevee' => 30,
+        'sword' => 31, 'shield' => 32,
+        'brilliant-diamond' => 33, 'shining-pearl' => 34,
+        'legends-arceus' => 35,
+        'scarlet' => 36, 'violet' => 37,
+    ];
+    return $order[$slug] ?? 99;
+}
+
+/**
+ * Map encounter method API slugs to display names.
+ */
+function method_display_name(string $slug): string {
+    static $names = [
+        'walk' => 'Walking',
+        'old-rod' => 'Old Rod',
+        'good-rod' => 'Good Rod',
+        'super-rod' => 'Super Rod',
+        'surf' => 'Surfing',
+        'rock-smash' => 'Rock Smash',
+        'headbutt' => 'Headbutt',
+        'dark-grass' => 'Dark Grass',
+        'grass-spots' => 'Grass Spots',
+        'cave-spots' => 'Cave Spots',
+        'bridge-spots' => 'Bridge Spots',
+        'super-rod-spots' => 'Super Rod Spots',
+        'surf-spots' => 'Surf Spots',
+        'yellow-flowers' => 'Yellow Flowers',
+        'purple-flowers' => 'Purple Flowers',
+        'red-flowers' => 'Red Flowers',
+        'rough-terrain' => 'Rough Terrain',
+        'gift' => 'Gift',
+        'gift-egg' => 'Gift Egg',
+        'only-one' => 'Static',
+        'pokeflute' => 'Pok\xc3\xa9 Flute',
+        'headbutt-low' => 'Headbutt (Low)',
+        'headbutt-normal' => 'Headbutt',
+        'headbutt-high' => 'Headbutt (High)',
+        'squirt-bottle' => 'Squirt Bottle',
+        'wailmer-pail' => 'Wailmer Pail',
+        'seaweed' => 'Seaweed',
+        'roaming-grass' => 'Roaming (Grass)',
+        'roaming-water' => 'Roaming (Water)',
+    ];
+    return $names[$slug] ?? title_case_name($slug);
+}
+
 // ─── Main Processing ────────────────────────────────────────────────
 
 function main(): void {
@@ -592,6 +686,7 @@ function main(): void {
     if (!is_dir(EGG_GROUPS_DIR)) mkdir(EGG_GROUPS_DIR, 0755, true);
     if (!is_dir(BERRIES_DIR)) mkdir(BERRIES_DIR, 0755, true);
     if (!is_dir(BERRY_SPRITES_DST)) mkdir(BERRY_SPRITES_DST, 0755, true);
+    if (!is_dir(ENCOUNTERS_DIR)) mkdir(ENCOUNTERS_DIR, 0755, true);
 
     // Determine how many species we have cached
     $speciesFiles = glob(CACHE_DIR . '/species/*.json');
@@ -1436,6 +1531,124 @@ function main(): void {
     }
     echo "  Berry sprites: {$berrySpritesCopied}\n\n";
 
+    // Process encounter data
+    echo "--- Processing Encounters ---\n";
+
+    // Build location area name map from cached location-area JSON
+    $locationAreaNameMap = []; // slug → English display name
+    $laFiles = glob(CACHE_DIR . '/location-areas/*.json');
+    foreach ($laFiles as $f) {
+        $laJson = json_decode(file_get_contents($f), true);
+        if (!$laJson) continue;
+        $slug = $laJson['name'] ?? '';
+        if (!$slug) continue;
+        $englishName = '';
+        foreach ($laJson['names'] ?? [] as $n) {
+            if (($n['language']['name'] ?? '') === 'en') {
+                $englishName = $n['name'];
+                break;
+            }
+        }
+        if ($englishName) {
+            $locationAreaNameMap[$slug] = $englishName;
+        } else {
+            // Title-case the slug as fallback
+            $locationAreaNameMap[$slug] = title_case_name($slug);
+        }
+    }
+    echo "  Loaded " . count($locationAreaNameMap) . " location area names.\n";
+
+    $encounterCount = 0;
+    $emptyEncounters = 0;
+
+    foreach ($speciesIds as $id) {
+        $encPath = CACHE_DIR . "/encounters/{$id}.json";
+        if (!file_exists($encPath)) {
+            $emptyEncounters++;
+            continue;
+        }
+        $encData = json_decode(file_get_contents($encPath), true);
+        if (!is_array($encData) || empty($encData)) {
+            $emptyEncounters++;
+            continue;
+        }
+
+        // Regroup: API gives location_area → version_details → encounter_details
+        // We want: version → locations (with method, level range, chance)
+        $byVersion = []; // version_slug → [location entries]
+
+        foreach ($encData as $areaEntry) {
+            $areaSlug = $areaEntry['location_area']['name'] ?? '';
+            $locationName = $locationAreaNameMap[$areaSlug] ?? title_case_name($areaSlug);
+
+            foreach ($areaEntry['version_details'] ?? [] as $vd) {
+                $versionSlug = $vd['version']['name'] ?? '';
+                if (!$versionSlug) continue;
+
+                foreach ($vd['encounter_details'] ?? [] as $ed) {
+                    $methodSlug = $ed['method']['name'] ?? '';
+                    $minLevel = $ed['min_level'] ?? 0;
+                    $maxLevel = $ed['max_level'] ?? 0;
+                    $chance = $ed['chance'] ?? 0;
+
+                    $key = $locationName . '|' . method_display_name($methodSlug);
+
+                    if (!isset($byVersion[$versionSlug])) {
+                        $byVersion[$versionSlug] = [];
+                    }
+                    if (!isset($byVersion[$versionSlug][$key])) {
+                        $byVersion[$versionSlug][$key] = [
+                            'location' => $locationName,
+                            'method' => method_display_name($methodSlug),
+                            'min_level' => $minLevel,
+                            'max_level' => $maxLevel,
+                            'chance' => $chance,
+                        ];
+                    } else {
+                        // Consolidate: expand level range, take max chance
+                        $existing = &$byVersion[$versionSlug][$key];
+                        if ($minLevel < $existing['min_level']) {
+                            $existing['min_level'] = $minLevel;
+                        }
+                        if ($maxLevel > $existing['max_level']) {
+                            $existing['max_level'] = $maxLevel;
+                        }
+                        $existing['chance'] = max($existing['chance'], $chance);
+                    }
+                }
+            }
+        }
+
+        // Sort versions chronologically
+        uksort($byVersion, fn($a, $b) => version_sort_order($a) - version_sort_order($b));
+
+        // Build output array
+        $encounterPlist = [];
+        foreach ($byVersion as $versionSlug => $locations) {
+            $locationList = array_values($locations);
+            // Sort locations alphabetically
+            usort($locationList, fn($a, $b) => strcmp($a['location'], $b['location']));
+
+            $encounterPlist[] = [
+                'version' => version_display_name($versionSlug),
+                'locations' => $locationList,
+            ];
+        }
+
+        if (!empty($encounterPlist)) {
+            write_plist(ENCOUNTERS_DIR . "/{$id}.plist", $encounterPlist);
+            $encounterCount++;
+        } else {
+            $emptyEncounters++;
+        }
+
+        if (($encounterCount + $emptyEncounters) % 100 === 0
+            || ($encounterCount + $emptyEncounters) === $totalSpecies) {
+            echo "  Encounters: " . ($encounterCount + $emptyEncounters) . "/{$totalSpecies} ({$encounterCount} with data)\n";
+        }
+    }
+    echo "  Wrote {$encounterCount} encounter plists ({$emptyEncounters} Pokemon have no wild encounters)\n\n";
+
     echo "=== Processing Complete ===\n";
     echo "  Index:      " . DATA_DIR . "/index.plist ({$processed} Pokemon)\n";
     echo "  Types:      " . DATA_DIR . "/types.plist (" . count($typesData) . " types)\n";
@@ -1449,6 +1662,7 @@ function main(): void {
     echo "  Egg Groups: " . EGG_GROUPS_DIR . "/ (" . count($eggGroupsIndex) . " groups)\n";
     echo "  Berries:    " . BERRIES_DIR . "/ ({$processedBerriesCount} plists)\n";
     echo "  Berry sprites: " . BERRY_SPRITES_DST . "/ ({$berrySpritesCopied} files)\n";
+    echo "  Encounters: " . ENCOUNTERS_DIR . "/ ({$encounterCount} plists)\n";
 }
 
 main();

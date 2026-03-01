@@ -17,6 +17,8 @@
  *   - All Egg Group data (/api/v2/egg-group/{id})
  *   - All Berry data (/api/v2/berry/{id})
  *   - Berry sprite PNGs (from item sprites)
+ *   - Per-Pokemon encounter data (/api/v2/pokemon/{id}/encounters)
+ *   - Location area display names (/api/v2/location-area/{id})
  *
  * Everything is cached to tools/.cache/ so re-runs skip already-fetched data.
  *
@@ -151,7 +153,8 @@ function main(): void {
     foreach (['pokemon', 'species', 'types', 'moves', 'move-damage-class', 'evolution-chains',
               'sprites', 'sprites-artwork', 'sprites-shiny', 'sprites-back', 'sprites-female',
               'abilities', 'items', 'sprites-items', 'machines',
-              'natures', 'egg-groups', 'berries', 'sprites-berries'] as $dir) {
+              'natures', 'egg-groups', 'berries', 'sprites-berries',
+              'encounters', 'location-areas'] as $dir) {
         $path = CACHE_DIR . '/' . $dir;
         if (!is_dir($path)) mkdir($path, 0755, true);
     }
@@ -599,6 +602,70 @@ function main(): void {
     }
     echo "\n";
 
+    // Step 17: Fetch per-Pokemon encounter data
+    echo "--- Fetching Encounter data ---\n";
+    $fetchedEncounters = 0;
+    $skippedEncounters = 0;
+    for ($id = 1; $id <= $totalSpecies; $id++) {
+        if (is_cached('encounters', (string)$id)) {
+            $skippedEncounters++;
+        } else {
+            $data = fetch_cached('encounters', (string)$id, BASE_URL . "/pokemon/{$id}/encounters");
+            if ($data === null) {
+                echo "  WARN: Failed to fetch encounters for pokemon/{$id}, skipping\n";
+            } else {
+                $fetchedEncounters++;
+            }
+        }
+
+        if ($id % 50 === 0 || $id === $totalSpecies) {
+            echo "  Encounters: {$id}/{$totalSpecies} (fetched: {$fetchedEncounters}, cached: {$skippedEncounters})\n";
+        }
+    }
+    echo "\n";
+
+    // Step 18: Fetch location area display names (only those referenced by encounter data)
+    echo "Scanning encounters for location area IDs...\n";
+    $locationAreaIds = [];
+    for ($id = 1; $id <= $totalSpecies; $id++) {
+        $encJson = read_cache('encounters', (string)$id);
+        if ($encJson === null) continue;
+        $encData = json_decode($encJson, true);
+        if (!is_array($encData)) continue;
+        foreach ($encData as $entry) {
+            $url = $entry['location_area']['url'] ?? '';
+            if (preg_match('/\/location-area\/(\d+)\/?$/', $url, $m)) {
+                $locationAreaIds[(int)$m[1]] = true;
+            }
+        }
+    }
+    $locationAreaIds = array_keys($locationAreaIds);
+    sort($locationAreaIds);
+    $totalLocationAreas = count($locationAreaIds);
+    echo "Unique location areas referenced: {$totalLocationAreas}\n\n";
+
+    echo "--- Fetching Location Area data ---\n";
+    $fetchedLocationAreas = 0;
+    $skippedLocationAreas = 0;
+    $processedLocationAreas = 0;
+    foreach ($locationAreaIds as $laId) {
+        $processedLocationAreas++;
+        if (is_cached('location-areas', (string)$laId)) {
+            $skippedLocationAreas++;
+        } else {
+            $data = fetch_json_cached('location-areas', (string)$laId, BASE_URL . "/location-area/{$laId}");
+            if ($data === null) {
+                echo "  WARN: Failed to fetch location-area/{$laId}, skipping\n";
+            }
+            $fetchedLocationAreas++;
+        }
+
+        if ($processedLocationAreas % 50 === 0 || $processedLocationAreas === $totalLocationAreas) {
+            echo "  Location Areas: {$processedLocationAreas}/{$totalLocationAreas} (fetched: {$fetchedLocationAreas}, cached: {$skippedLocationAreas})\n";
+        }
+    }
+    echo "\n";
+
     // Summary
     echo "=== Fetch Complete ===\n";
     echo "  Pokemon:   {$totalSpecies} entries\n";
@@ -625,6 +692,8 @@ function main(): void {
     echo "  Berries:   {$totalBerries} entries\n";
     echo "  Berry Sprites:  {$berrySpritesTotal} downloaded, {$berrySpritesMissing} missing\n";
     echo "  Machines:  {$totalMachines} entries\n";
+    echo "  Encounters: {$totalSpecies} entries\n";
+    echo "  Location Areas: {$totalLocationAreas} entries\n";
     echo "  Cache dir: " . realpath(CACHE_DIR) . "\n\n";
     echo "Next step: php tools/process.php\n";
 }

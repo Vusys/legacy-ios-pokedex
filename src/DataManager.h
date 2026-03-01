@@ -97,6 +97,9 @@ extern NSString *const FavouritesChangedNotification;
 // Berry sprite
 - (UIImage *)spriteForBerryID:(NSInteger)berryID;
 
+// Encounter data (loaded on demand, separate from Pokemon detail)
+- (NSArray *)encounterDataForPokemonID:(NSInteger)pokemonID;
+
 // Favourites
 - (BOOL)isFavourite:(NSInteger)entityID type:(NSString *)entityType;
 - (void)toggleFavourite:(NSInteger)entityID type:(NSString *)entityType;

@@ -26,6 +26,7 @@ NSString *const FavouritesChangedNotification = @"FavouritesChangedNotification"
 @property (nonatomic, strong) NSArray *berriesIndex;
 @property (nonatomic, strong) NSMutableDictionary *eggGroupDetailCache;
 @property (nonatomic, strong) NSMutableDictionary *berryDetailCache;
+@property (nonatomic, strong) NSMutableDictionary *encounterCache;
 @property (nonatomic, strong) NSMutableDictionary *favourites; // type -> NSMutableSet of NSNumber IDs
 @end
 
@@ -51,6 +52,7 @@ NSString *const FavouritesChangedNotification = @"FavouritesChangedNotification"
         _spriteCache.countLimit = 500;
         _eggGroupDetailCache = [[NSMutableDictionary alloc] init];
         _berryDetailCache = [[NSMutableDictionary alloc] init];
+        _encounterCache = [[NSMutableDictionary alloc] init];
         [self loadFavourites];
     }
     return self;
@@ -791,6 +793,33 @@ NSString *const FavouritesChangedNotification = @"FavouritesChangedNotification"
         [_spriteCache setObject:image forKey:key];
     }
     return image;
+}
+
+#pragma mark - Encounter Data
+
+- (NSArray *)encounterDataForPokemonID:(NSInteger)pokemonID {
+    NSNumber *key = @(pokemonID);
+    NSArray *cached = _encounterCache[key];
+    if (cached) return cached;
+
+    CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
+    NSString *filename = [NSString stringWithFormat:@"%ld", (long)pokemonID];
+    NSString *path = [[NSBundle mainBundle] pathForResource:filename
+                                                    ofType:@"plist"
+                                               inDirectory:@"data/encounters"];
+    NSArray *data = nil;
+    if (path) {
+        data = [NSArray arrayWithContentsOfFile:path];
+    }
+    if (!data) {
+        data = @[];
+    }
+
+    _encounterCache[key] = data;
+    NSLog(@"[PERF] DataManager loadEncounters: %.1fms (id=%ld, versions=%lu)",
+          (CFAbsoluteTimeGetCurrent() - start) * 1000,
+          (long)pokemonID, (unsigned long)data.count);
+    return data;
 }
 
 #pragma mark - Favourites
