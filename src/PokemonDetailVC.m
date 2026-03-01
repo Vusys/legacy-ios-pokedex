@@ -422,22 +422,58 @@
 
     NSDictionary *entry = self.thumbnailEntries[(NSUInteger)self.selectedThumbnailIndex];
     BOOL isSprite = [entry[@"isSprite"] boolValue];
-    // Use original full-res image for fullscreen
     UIImage *fullImage = entry[@"image"];
+    NSString *label = entry[@"label"];
 
     UIWindow *window = self.view.window;
     CGRect windowBounds = window.bounds;
+    CGFloat barH = 44;
 
     UIView *overlay = [[UIView alloc] initWithFrame:windowBounds];
-    overlay.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.92];
+    overlay.backgroundColor = [UIColor whiteColor];
     overlay.alpha = 0;
 
-    UIImageView *imageView = [[UIImageView alloc] initWithFrame:windowBounds];
-    imageView.backgroundColor = [UIColor clearColor];
+    // Top bar with bottom border
+    UIView *topBar = [[UIView alloc] initWithFrame:
+        CGRectMake(0, 0, windowBounds.size.width, barH)];
+    topBar.backgroundColor = [UIColor colorWithWhite:0.97 alpha:1];
+
+    UIView *barBorder = [[UIView alloc] initWithFrame:
+        CGRectMake(0, barH - 0.5, windowBounds.size.width, 0.5)];
+    barBorder.backgroundColor = [UIColor colorWithWhite:0.78 alpha:1];
+    [topBar addSubview:barBorder];
+
+    // Title label in bar
+    UILabel *titleLabel = [[UILabel alloc] initWithFrame:
+        CGRectMake(60, 0, windowBounds.size.width - 120, barH)];
+    titleLabel.text = label;
+    titleLabel.font = [UIFont boldSystemFontOfSize:17];
+    titleLabel.textColor = [UIColor darkTextColor];
+    titleLabel.textAlignment = NSTextAlignmentCenter;
+    titleLabel.backgroundColor = [UIColor clearColor];
+    [topBar addSubview:titleLabel];
+
+    // Done button
+    UIButton *doneBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+    doneBtn.frame = CGRectMake(windowBounds.size.width - 70, 0, 60, barH);
+    [doneBtn setTitle:@"Done" forState:UIControlStateNormal];
+    [doneBtn setTitleColor:[UIColor colorWithRed:0.2 green:0.4 blue:0.9 alpha:1]
+        forState:UIControlStateNormal];
+    doneBtn.titleLabel.font = [UIFont boldSystemFontOfSize:17];
+    [doneBtn addTarget:self action:@selector(dismissFullScreenOverlay:)
+        forControlEvents:UIControlEventTouchUpInside];
+    [topBar addSubview:doneBtn];
+
+    [overlay addSubview:topBar];
+
+    // Image area below bar
+    CGRect imageArea = CGRectMake(0, barH, windowBounds.size.width,
+                                  windowBounds.size.height - barH);
+    UIImageView *imageView = [[UIImageView alloc] initWithFrame:imageArea];
+    imageView.backgroundColor = [UIColor whiteColor];
 
     if (isSprite) {
-        // Pixel-perfect: scale to largest integer multiple that fits
-        CGFloat fitDim = MIN(windowBounds.size.width, windowBounds.size.height);
+        CGFloat fitDim = MIN(imageArea.size.width, imageArea.size.height);
         UIImage *scaled = [self pixelScaledImage:fullImage toFitSize:fitDim];
         imageView.image = scaled;
         imageView.contentMode = UIViewContentModeCenter;
@@ -449,20 +485,6 @@
 
     [overlay addSubview:imageView];
 
-    // Close button
-    UILabel *closeHint = [[UILabel alloc] initWithFrame:
-        CGRectMake(0, windowBounds.size.height - 44, windowBounds.size.width, 32)];
-    closeHint.text = @"Tap to close";
-    closeHint.font = [UIFont systemFontOfSize:14];
-    closeHint.textColor = [UIColor colorWithWhite:1.0 alpha:0.6];
-    closeHint.textAlignment = NSTextAlignmentCenter;
-    closeHint.backgroundColor = [UIColor clearColor];
-    [overlay addSubview:closeHint];
-
-    UITapGestureRecognizer *dismissTap = [[UITapGestureRecognizer alloc]
-        initWithTarget:self action:@selector(dismissFullScreenImage:)];
-    [overlay addGestureRecognizer:dismissTap];
-
     [window addSubview:overlay];
 
     [UIView animateWithDuration:0.25 animations:^{
@@ -470,8 +492,9 @@
     }];
 }
 
-- (void)dismissFullScreenImage:(UITapGestureRecognizer *)gesture {
-    UIView *overlay = gesture.view;
+- (void)dismissFullScreenOverlay:(id)sender {
+    // Walk up from the button to the overlay (button → topBar → overlay)
+    UIView *overlay = [[sender superview] superview];
     [UIView animateWithDuration:0.2 animations:^{
         overlay.alpha = 0;
     } completion:^(BOOL finished) {
