@@ -20,6 +20,11 @@
     self.regions = [[DataManager sharedManager] allRegions];
 }
 
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self styleNavBar];
+}
+
 - (void)styleNavBar {
     [self.navigationController.navigationBar
         setBackgroundImage:NavBarGradientImage(0.30, 0.45, 0.20, 0.45, 0.60, 0.30)

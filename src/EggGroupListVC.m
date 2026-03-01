@@ -47,6 +47,7 @@
     searchBar.placeholder = @"Search Egg Groups";
     searchBar.delegate = self;
     searchBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    searchBar.tintColor = [UIColor colorWithRed:0.25 green:0.60 blue:0.65 alpha:1];
     self.tableView.tableHeaderView = searchBar;
 
     self.searchDC = [[UISearchDisplayController alloc]
@@ -69,6 +70,11 @@
         [self recomputeDisplayedEggGroups];
         [self.tableView reloadData];
     }
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self styleNavBar];
 }
 
 - (void)styleNavBar {

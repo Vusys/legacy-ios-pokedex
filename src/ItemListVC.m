@@ -65,6 +65,7 @@
     searchBar.placeholder = @"Search Items";
     searchBar.delegate = self;
     searchBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    searchBar.tintColor = [UIColor colorWithRed:0.75 green:0.50 blue:0.15 alpha:1];
     [headerWrapper addSubview:searchBar];
 
     // Column label bar
@@ -113,6 +114,11 @@
         [self recomputeDisplayedItems];
         [self.tableView reloadData];
     }
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self styleNavBar];
 }
 
 - (void)styleNavBar {

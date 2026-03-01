@@ -48,6 +48,7 @@
     searchBar.placeholder = @"Search Pokémon";
     searchBar.delegate = self;
     searchBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    searchBar.tintColor = [UIColor colorWithRed:0.80 green:0.0 blue:0.0 alpha:1];
     self.tableView.tableHeaderView = searchBar;
 
     self.searchDC = [[UISearchDisplayController alloc]
@@ -70,6 +71,11 @@
         [self recomputeDisplayedPokemon];
         [self.tableView reloadData];
     }
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self styleNavBar];
 }
 
 - (void)styleNavBar {

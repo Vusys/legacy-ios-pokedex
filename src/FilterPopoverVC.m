@@ -119,7 +119,7 @@ static NSString *generationDisplayName(NSString *gen) {
     CGFloat scrollHeight = popoverHeight - BOTTOM_BAR_HEIGHT;
     _scrollView = [[UIScrollView alloc] initWithFrame:
         CGRectMake(0, 0, [self contentWidth], scrollHeight)];
-    _scrollView.alwaysBounceVertical = YES;
+    _scrollView.alwaysBounceVertical = NO;
     _scrollView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [self.view addSubview:_scrollView];
 
@@ -459,8 +459,13 @@ static NSString *generationDisplayName(NSString *gen) {
     [_bottomBar addSubview:sep];
 
     // Reset button
-    UIButton *resetBtn = [UIButton buttonWithType:UIButtonTypeRoundedRect];
+    UIButton *resetBtn = [UIButton buttonWithType:UIButtonTypeCustom];
     resetBtn.frame = CGRectMake(SECTION_PADDING, 8, 90, 32);
+    resetBtn.backgroundColor = [UIColor whiteColor];
+    resetBtn.layer.cornerRadius = 6;
+    resetBtn.clipsToBounds = YES;
+    resetBtn.layer.borderWidth = 1;
+    resetBtn.layer.borderColor = [[UIColor colorWithWhite:0.75 alpha:1] CGColor];
     [resetBtn setTitle:@"Reset" forState:UIControlStateNormal];
     resetBtn.titleLabel.font = [UIFont boldSystemFontOfSize:14];
     [resetBtn setTitleColor:[UIColor colorWithRed:0.8 green:0.2 blue:0.2 alpha:1]
@@ -470,11 +475,12 @@ static NSString *generationDisplayName(NSString *gen) {
     [_bottomBar addSubview:resetBtn];
 
     // Apply button
-    UIButton *applyBtn = [UIButton buttonWithType:UIButtonTypeRoundedRect];
+    UIButton *applyBtn = [UIButton buttonWithType:UIButtonTypeCustom];
     applyBtn.frame = CGRectMake([self contentWidth] - SECTION_PADDING - 90, 8, 90, 32);
     applyBtn.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin;
     applyBtn.backgroundColor = [UIColor colorWithRed:0.2 green:0.5 blue:0.9 alpha:1];
     applyBtn.layer.cornerRadius = 6;
+    applyBtn.clipsToBounds = YES;
     [applyBtn setTitle:@"Apply" forState:UIControlStateNormal];
     applyBtn.titleLabel.font = [UIFont boldSystemFontOfSize:14];
     [applyBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];

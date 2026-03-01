@@ -53,6 +53,7 @@
     searchBar.placeholder = @"Search Moves";
     searchBar.delegate = self;
     searchBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    searchBar.tintColor = [UIColor colorWithRed:0.25 green:0.40 blue:0.65 alpha:1];
     [headerWrapper addSubview:searchBar];
 
     // Column labels
@@ -105,6 +106,11 @@
         [self recomputeDisplayedMoves];
         [self.tableView reloadData];
     }
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self styleNavBar];
 }
 
 - (void)styleNavBar {

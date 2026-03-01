@@ -47,6 +47,7 @@
     searchBar.placeholder = @"Search Natures";
     searchBar.delegate = self;
     searchBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+    searchBar.tintColor = [UIColor colorWithRed:0.60 green:0.35 blue:0.70 alpha:1];
     self.tableView.tableHeaderView = searchBar;
 
     self.searchDC = [[UISearchDisplayController alloc]
@@ -69,6 +70,11 @@
         [self recomputeDisplayedNatures];
         [self.tableView reloadData];
     }
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [self styleNavBar];
 }
 
 - (void)styleNavBar {
