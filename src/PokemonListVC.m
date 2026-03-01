@@ -78,6 +78,7 @@
     _groupControl.frame = CGRectMake(8, 4, width - 44, 28);
     _groupControl.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     _groupControl.segmentedControlStyle = UISegmentedControlStyleBar;
+    _groupControl.tintColor = [UIColor colorWithWhite:0.45 alpha:1];
     _groupControl.selectedSegmentIndex = 0;
     [_groupControl addTarget:self action:@selector(groupingChanged:)
             forControlEvents:UIControlEventValueChanged];
