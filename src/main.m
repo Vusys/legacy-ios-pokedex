@@ -15,6 +15,8 @@
 #import "EggGroupDetailVC.h"
 #import "BerryListVC.h"
 #import "BerryDetailVC.h"
+#import "RegionListVC.h"
+#import "LocationDetailVC.h"
 #import "DataManager.h"
 
 // ─── AppDelegate ────────────────────────────────────────────────────
@@ -321,6 +323,42 @@
     return img;
 }
 
+// Draw a map pin silhouette for the Locations tab (30x30 alpha mask)
+- (UIImage *)locationsIcon {
+    CGFloat size = 30;
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+
+    [[UIColor whiteColor] setFill];
+    [[UIColor whiteColor] setStroke];
+
+    CGFloat cx = size / 2.0;
+
+    // Pin head (circle)
+    CGFloat headR = 8;
+    CGContextFillEllipseInRect(ctx, CGRectMake(cx - headR, 3, headR * 2, headR * 2));
+
+    // Pin point (triangle below the circle)
+    CGMutablePathRef point = CGPathCreateMutable();
+    CGPathMoveToPoint(point, NULL, cx - 6, 14);
+    CGPathAddLineToPoint(point, NULL, cx, 27);
+    CGPathAddLineToPoint(point, NULL, cx + 6, 14);
+    CGPathCloseSubpath(point);
+    CGContextAddPath(ctx, point);
+    CGContextFillPath(ctx);
+    CGPathRelease(point);
+
+    // Inner circle cutout (to make a ring effect)
+    CGContextSetBlendMode(ctx, kCGBlendModeClear);
+    CGFloat innerR = 3.5;
+    CGContextFillEllipseInRect(ctx, CGRectMake(cx - innerR, 3 + headR - innerR,
+                                                innerR * 2, innerR * 2));
+
+    UIImage *img = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return img;
+}
+
 - (BOOL)application:(UIApplication *)application
     didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
 
@@ -342,14 +380,14 @@
         UISplitViewController *pokedexSplit = [[UISplitViewController alloc] init];
         pokedexSplit.viewControllers = @[pokedexMasterNav, pokedexDetailNav];
         pokedexSplit.delegate = self;
-        pokedexSplit.title = @"Pokédex";
-        pokedexSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Pokédex"
+        pokedexSplit.title = @"Pok\u00e9mon";
+        pokedexSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Pok\u00e9mon"
             image:[self pokeballIcon] tag:1];
         pokedexTab = pokedexSplit;
     } else {
         UINavigationController *pokedexNav = [[UINavigationController alloc]
             initWithRootViewController:pokedexList];
-        pokedexNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Pokédex"
+        pokedexNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Pok\u00e9mon"
             image:[self pokeballIcon] tag:1];
         pokedexTab = pokedexNav;
     }
@@ -405,104 +443,66 @@
         abilitiesTab = abilitiesNav;
     }
 
-    // ─── Tab 4: Items ───────────────────────────────────────
+    // ─── Overflow tabs (5+) ────────────────────────────────
+    // These end up in the "More" tab. UISplitViewController cannot be pushed
+    // onto UIMoreNavigationController, so all overflow tabs use plain
+    // UINavigationController with push-based drill-down on both iPad and iPhone.
+
+    // ─── Tab 5: Items ───────────────────────────────────────
     ItemCategoryListVC *itemCategoryList = [[ItemCategoryListVC alloc] init];
-    UIViewController *itemsTab;
+    UINavigationController *itemsNav = [[UINavigationController alloc]
+        initWithRootViewController:itemCategoryList];
+    itemsNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Items"
+        image:[self itemsIcon] tag:5];
+    UIViewController *itemsTab = itemsNav;
 
-    if (isiPad) {
-        UINavigationController *itemMasterNav = [[UINavigationController alloc]
-            initWithRootViewController:itemCategoryList];
-        ItemDetailVC *itemDetail = [[ItemDetailVC alloc] init];
-        UINavigationController *itemDetailNav = [[UINavigationController alloc]
-            initWithRootViewController:itemDetail];
-        UISplitViewController *itemsSplit = [[UISplitViewController alloc] init];
-        itemsSplit.viewControllers = @[itemMasterNav, itemDetailNav];
-        itemsSplit.delegate = self;
-        itemsSplit.title = @"Items";
-        itemsSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Items"
-            image:[self itemsIcon] tag:4];
-        itemsTab = itemsSplit;
-    } else {
-        UINavigationController *itemsNav = [[UINavigationController alloc]
-            initWithRootViewController:itemCategoryList];
-        itemsNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Items"
-            image:[self itemsIcon] tag:4];
-        itemsTab = itemsNav;
-    }
-
-    // ─── Tab 5: Natures ─────────────────────────────────────
-    NatureListVC *natureList = [[NatureListVC alloc] init];
-    UIViewController *naturesTab;
-
-    if (isiPad) {
-        UINavigationController *natureMasterNav = [[UINavigationController alloc]
-            initWithRootViewController:natureList];
-        NatureDetailVC *natureDetail = [[NatureDetailVC alloc] init];
-        UINavigationController *natureDetailNav = [[UINavigationController alloc]
-            initWithRootViewController:natureDetail];
-        UISplitViewController *naturesSplit = [[UISplitViewController alloc] init];
-        naturesSplit.viewControllers = @[natureMasterNav, natureDetailNav];
-        naturesSplit.delegate = self;
-        naturesSplit.title = @"Natures";
-        naturesSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Natures"
-            image:[self naturesIcon] tag:5];
-        naturesTab = naturesSplit;
-    } else {
-        UINavigationController *naturesNav = [[UINavigationController alloc]
-            initWithRootViewController:natureList];
-        naturesNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Natures"
-            image:[self naturesIcon] tag:5];
-        naturesTab = naturesNav;
-    }
-
-    // ─── Tab 6: Egg Groups ──────────────────────────────────
-    EggGroupListVC *eggGroupList = [[EggGroupListVC alloc] init];
-    UIViewController *eggGroupsTab;
-
-    if (isiPad) {
-        UINavigationController *eggGroupMasterNav = [[UINavigationController alloc]
-            initWithRootViewController:eggGroupList];
-        EggGroupDetailVC *eggGroupDetail = [[EggGroupDetailVC alloc] init];
-        UINavigationController *eggGroupDetailNav = [[UINavigationController alloc]
-            initWithRootViewController:eggGroupDetail];
-        UISplitViewController *eggGroupsSplit = [[UISplitViewController alloc] init];
-        eggGroupsSplit.viewControllers = @[eggGroupMasterNav, eggGroupDetailNav];
-        eggGroupsSplit.delegate = self;
-        eggGroupsSplit.title = @"Egg Groups";
-        eggGroupsSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Egg Groups"
-            image:[self eggGroupsIcon] tag:6];
-        eggGroupsTab = eggGroupsSplit;
-    } else {
-        UINavigationController *eggGroupsNav = [[UINavigationController alloc]
-            initWithRootViewController:eggGroupList];
-        eggGroupsNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Egg Groups"
-            image:[self eggGroupsIcon] tag:6];
-        eggGroupsTab = eggGroupsNav;
-    }
-
-    // ─── Tab 7: Berries ─────────────────────────────────────
+    // ─── Tab 6: Berries ─────────────────────────────────────
     BerryListVC *berryList = [[BerryListVC alloc] init];
-    UIViewController *berriesTab;
+    UINavigationController *berriesNav = [[UINavigationController alloc]
+        initWithRootViewController:berryList];
+    berriesNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Berries"
+        image:[self berriesIcon] tag:6];
+    UIViewController *berriesTab = berriesNav;
+
+    // ─── Tab 7: Natures ─────────────────────────────────────
+    NatureListVC *natureList = [[NatureListVC alloc] init];
+    UINavigationController *naturesNav = [[UINavigationController alloc]
+        initWithRootViewController:natureList];
+    naturesNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Natures"
+        image:[self naturesIcon] tag:7];
+    UIViewController *naturesTab = naturesNav;
+
+    // ─── Tab 8: Egg Groups ──────────────────────────────────
+    EggGroupListVC *eggGroupList = [[EggGroupListVC alloc] init];
+    UINavigationController *eggGroupsNav = [[UINavigationController alloc]
+        initWithRootViewController:eggGroupList];
+    eggGroupsNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Egg Groups"
+        image:[self eggGroupsIcon] tag:8];
+    UIViewController *eggGroupsTab = eggGroupsNav;
+
+    // ─── Tab 8: Locations ──────────────────────────────────
+    RegionListVC *regionList = [[RegionListVC alloc] init];
+    UIViewController *locationsTab;
 
     if (isiPad) {
-        UINavigationController *berryMasterNav = [[UINavigationController alloc]
-            initWithRootViewController:berryList];
-        BerryDetailVC *berryDetail = [[BerryDetailVC alloc] init];
-        UINavigationController *berryDetailNav = [[UINavigationController alloc]
-            initWithRootViewController:berryDetail];
-        UISplitViewController *berriesSplit = [[UISplitViewController alloc] init];
-        berriesSplit.viewControllers = @[berryMasterNav, berryDetailNav];
-        berriesSplit.delegate = self;
-        berriesSplit.title = @"Berries";
-        berriesSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Berries"
-            image:[self berriesIcon] tag:7];
-        berriesTab = berriesSplit;
+        UINavigationController *locationMasterNav = [[UINavigationController alloc]
+            initWithRootViewController:regionList];
+        LocationDetailVC *locationDetail = [[LocationDetailVC alloc] init];
+        UINavigationController *locationDetailNav = [[UINavigationController alloc]
+            initWithRootViewController:locationDetail];
+        UISplitViewController *locationsSplit = [[UISplitViewController alloc] init];
+        locationsSplit.viewControllers = @[locationMasterNav, locationDetailNav];
+        locationsSplit.delegate = self;
+        locationsSplit.title = @"Locations";
+        locationsSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Locations"
+            image:[self locationsIcon] tag:8];
+        locationsTab = locationsSplit;
     } else {
-        UINavigationController *berriesNav = [[UINavigationController alloc]
-            initWithRootViewController:berryList];
-        berriesNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Berries"
-            image:[self berriesIcon] tag:7];
-        berriesTab = berriesNav;
+        UINavigationController *locationsNav = [[UINavigationController alloc]
+            initWithRootViewController:regionList];
+        locationsNav.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Locations"
+            image:[self locationsIcon] tag:8];
+        locationsTab = locationsNav;
     }
 
     // ─── Tab 0: Home ───────────────────────────────────────
@@ -515,7 +515,7 @@
     // ─── Tab Bar ────────────────────────────────────────────
     UITabBarController *tabBar = [[UITabBarController alloc] init];
     tabBar.viewControllers = @[homeNav, pokedexTab, movesTab, abilitiesTab,
-        itemsTab, naturesTab, eggGroupsTab, berriesTab];
+        locationsTab, itemsTab, berriesTab, naturesTab, eggGroupsTab];
 
     self.window.rootViewController = tabBar;
     [self.window makeKeyAndVisible];

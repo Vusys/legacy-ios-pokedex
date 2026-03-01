@@ -8,6 +8,7 @@
 @class Nature;
 @class EggGroup;
 @class Berry;
+@class Location;
 
 extern NSString *const FavouritesChangedNotification;
 
@@ -99,6 +100,15 @@ extern NSString *const FavouritesChangedNotification;
 
 // Encounter data (loaded on demand, separate from Pokemon detail)
 - (NSArray *)encounterDataForPokemonID:(NSInteger)pokemonID;
+
+// Locations index
+- (NSArray *)allLocationSummaries;
+- (NSArray *)locationSummariesForRegion:(NSString *)regionName;
+- (NSArray *)searchLocationsWithQuery:(NSString *)query
+                             inRegion:(NSString *)regionName
+                               sortBy:(NSString *)sortBy;
+- (Location *)locationDetailWithID:(NSInteger)locationID;
+- (NSArray *)allRegions;
 
 // Favourites
 - (BOOL)isFavourite:(NSInteger)entityID type:(NSString *)entityType;

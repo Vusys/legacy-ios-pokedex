@@ -6,6 +6,7 @@
 #import "Nature.h"
 #import "EggGroup.h"
 #import "Berry.h"
+#import "Location.h"
 
 NSString *const FavouritesChangedNotification = @"FavouritesChangedNotification";
 
@@ -27,6 +28,8 @@ NSString *const FavouritesChangedNotification = @"FavouritesChangedNotification"
 @property (nonatomic, strong) NSMutableDictionary *eggGroupDetailCache;
 @property (nonatomic, strong) NSMutableDictionary *berryDetailCache;
 @property (nonatomic, strong) NSMutableDictionary *encounterCache;
+@property (nonatomic, strong) NSArray *locationsIndex;
+@property (nonatomic, strong) NSMutableDictionary *locationDetailCache;
 @property (nonatomic, strong) NSMutableDictionary *favourites; // type -> NSMutableSet of NSNumber IDs
 @end
 
@@ -53,6 +56,7 @@ NSString *const FavouritesChangedNotification = @"FavouritesChangedNotification"
         _eggGroupDetailCache = [[NSMutableDictionary alloc] init];
         _berryDetailCache = [[NSMutableDictionary alloc] init];
         _encounterCache = [[NSMutableDictionary alloc] init];
+        _locationDetailCache = [[NSMutableDictionary alloc] init];
         [self loadFavourites];
     }
     return self;
@@ -822,12 +826,127 @@ NSString *const FavouritesChangedNotification = @"FavouritesChangedNotification"
     return data;
 }
 
+#pragma mark - Locations Index
+
+- (NSArray *)allLocationSummaries {
+    if (!_locationsIndex) {
+        CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
+        NSString *path = [[NSBundle mainBundle] pathForResource:@"index"
+                                                        ofType:@"plist"
+                                                   inDirectory:@"data/locations"];
+        if (path) {
+            _locationsIndex = [NSArray arrayWithContentsOfFile:path];
+        }
+        if (!_locationsIndex) {
+            NSLog(@"WARNING: Could not load locations/index.plist");
+            _locationsIndex = @[];
+        } else {
+            NSLog(@"[PERF] DataManager loadLocationsIndex: %.1fms (%lu entries)",
+                  (CFAbsoluteTimeGetCurrent() - start) * 1000,
+                  (unsigned long)_locationsIndex.count);
+        }
+    }
+    return _locationsIndex;
+}
+
+- (NSArray *)locationSummariesForRegion:(NSString *)regionName {
+    NSArray *all = [self allLocationSummaries];
+    if (!regionName || regionName.length == 0) return all;
+
+    return [all filteredArrayUsingPredicate:
+        [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+            return [entry[@"region"] isEqualToString:regionName];
+        }]];
+}
+
+- (NSArray *)searchLocationsWithQuery:(NSString *)query
+                             inRegion:(NSString *)regionName
+                               sortBy:(NSString *)sortBy {
+    NSArray *results = [self locationSummariesForRegion:regionName];
+
+    // Search query
+    if (query.length > 0) {
+        NSString *lowerQuery = [query lowercaseString];
+        results = [results filteredArrayUsingPredicate:
+            [NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry, NSDictionary *bindings) {
+                NSString *name = [entry[@"name"] lowercaseString];
+                return [name rangeOfString:lowerQuery].location != NSNotFound;
+            }]];
+    }
+
+    // Sort
+    if ([sortBy isEqualToString:@"name"]) {
+        results = [results sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+            return [a[@"name"] compare:b[@"name"] options:NSCaseInsensitiveSearch];
+        }];
+    }
+    // Default "number" sort is already in plist order (by id)
+
+    return results;
+}
+
+- (Location *)locationDetailWithID:(NSInteger)locationID {
+    NSNumber *key = @(locationID);
+    Location *cached = _locationDetailCache[key];
+    if (cached) return cached;
+
+    NSString *filename = [NSString stringWithFormat:@"%ld", (long)locationID];
+    NSString *path = [[NSBundle mainBundle] pathForResource:filename
+                                                    ofType:@"plist"
+                                               inDirectory:@"data/locations"];
+    if (!path) return nil;
+
+    NSDictionary *dict = [NSDictionary dictionaryWithContentsOfFile:path];
+    if (!dict) return nil;
+
+    Location *location = [Location locationFromDictionary:dict];
+    _locationDetailCache[key] = location;
+    return location;
+}
+
+- (NSArray *)allRegions {
+    NSArray *all = [self allLocationSummaries];
+    NSMutableDictionary *regionCounts = [[NSMutableDictionary alloc] init];
+
+    for (NSDictionary *loc in all) {
+        NSString *region = loc[@"region"] ?: @"";
+        if (region.length == 0) continue;
+        NSNumber *count = regionCounts[region];
+        regionCounts[region] = @([count integerValue] + 1);
+    }
+
+    // Define region sort order
+    NSDictionary *regionOrder = @{
+        @"Kanto": @1, @"Johto": @2, @"Hoenn": @3, @"Sinnoh": @4,
+        @"Unova": @5, @"Kalos": @6, @"Alola": @7, @"Galar": @8,
+        @"Hisui": @9, @"Paldea": @10
+    };
+
+    NSMutableArray *regions = [[NSMutableArray alloc] init];
+    for (NSString *name in regionCounts) {
+        [regions addObject:@{
+            @"name": name,
+            @"location_count": regionCounts[name]
+        }];
+    }
+
+    [regions sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+        NSInteger oa = [regionOrder[a[@"name"]] integerValue] ?: 99;
+        NSInteger ob = [regionOrder[b[@"name"]] integerValue] ?: 99;
+        if (oa < ob) return NSOrderedAscending;
+        if (oa > ob) return NSOrderedDescending;
+        return [a[@"name"] compare:b[@"name"]];
+    }];
+
+    return regions;
+}
+
 #pragma mark - Favourites
 
 - (void)loadFavourites {
     _favourites = [[NSMutableDictionary alloc] init];
     NSArray *types = @[@"pokemon", @"moves", @"abilities", @"items",
-                       @"natures", @"egg_groups", @"berries"];
+                       @"natures", @"egg_groups", @"berries", @"locations"];
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     for (NSString *type in types) {
         NSString *key = [NSString stringWithFormat:@"favourites_%@", type];

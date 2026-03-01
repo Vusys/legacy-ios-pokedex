@@ -154,7 +154,7 @@ function main(): void {
               'sprites', 'sprites-artwork', 'sprites-shiny', 'sprites-back', 'sprites-female',
               'abilities', 'items', 'sprites-items', 'machines',
               'natures', 'egg-groups', 'berries', 'sprites-berries',
-              'encounters', 'location-areas'] as $dir) {
+              'encounters', 'location-areas', 'locations'] as $dir) {
         $path = CACHE_DIR . '/' . $dir;
         if (!is_dir($path)) mkdir($path, 0755, true);
     }
@@ -395,31 +395,42 @@ function main(): void {
     }
     echo "\n";
 
-    // Step 11: Download Item Sprites
+    // Step 11: Download Item Sprites (only for items with a sprite URL in API data)
     echo "--- Downloading Item Sprites ---\n";
     $itemSpritesFetched = 0;
     $itemSpritesCached = 0;
-    $itemSpritesMissing = 0;
+    $itemSpritesSkipped = 0;
     $processedItemSprites = 0;
     foreach ($itemIds as $id) {
         $processedItemSprites++;
         $name = $itemNames[$id] ?? null;
         if ($name === null) {
-            $itemSpritesMissing++;
+            $itemSpritesSkipped++;
         } elseif (is_cached('sprites-items', $name, 'png')) {
             $itemSpritesCached++;
         } else {
-            $url = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/{$name}.png";
-            $data = fetch_cached('sprites-items', $name, $url, 'png');
-            if ($data === null) {
-                $itemSpritesMissing++;
+            // Read the cached item JSON to get the actual sprite URL
+            $itemJson = read_cache('items', (string)$id);
+            $spriteUrl = null;
+            if ($itemJson !== null) {
+                $itemData = json_decode($itemJson, true);
+                $spriteUrl = $itemData['sprites']['default'] ?? null;
+            }
+
+            if ($spriteUrl === null) {
+                $itemSpritesSkipped++;
             } else {
-                $itemSpritesFetched++;
+                $data = fetch_cached('sprites-items', $name, $spriteUrl, 'png');
+                if ($data === null) {
+                    $itemSpritesSkipped++;
+                } else {
+                    $itemSpritesFetched++;
+                }
             }
         }
 
         if ($processedItemSprites % 200 === 0 || $processedItemSprites === count($itemIds)) {
-            echo "  Item Sprites: {$processedItemSprites}/" . count($itemIds) . " (fetched: {$itemSpritesFetched}, cached: {$itemSpritesCached}, missing: {$itemSpritesMissing})\n";
+            echo "  Item Sprites: {$processedItemSprites}/" . count($itemIds) . " (fetched: {$itemSpritesFetched}, cached: {$itemSpritesCached}, no sprite: {$itemSpritesSkipped})\n";
         }
     }
     echo "\n";
@@ -666,6 +677,46 @@ function main(): void {
     }
     echo "\n";
 
+    // Step 19: Fetch parent location data (for Locations tab)
+    echo "Scanning location-areas for parent location IDs...\n";
+    $parentLocationIds = [];
+    foreach ($locationAreaIds as $laId) {
+        $laJson = read_cache('location-areas', (string)$laId);
+        if ($laJson === null) continue;
+        $laData = json_decode($laJson, true);
+        if (!$laData) continue;
+        $locUrl = $laData['location']['url'] ?? '';
+        if (preg_match('/\/location\/(\d+)\/?$/', $locUrl, $m)) {
+            $parentLocationIds[(int)$m[1]] = true;
+        }
+    }
+    $parentLocationIds = array_keys($parentLocationIds);
+    sort($parentLocationIds);
+    $totalLocations = count($parentLocationIds);
+    echo "Unique parent locations: {$totalLocations}\n\n";
+
+    echo "--- Fetching Location data ---\n";
+    $fetchedLocations = 0;
+    $skippedLocations = 0;
+    $processedLocations = 0;
+    foreach ($parentLocationIds as $locId) {
+        $processedLocations++;
+        if (is_cached('locations', (string)$locId)) {
+            $skippedLocations++;
+        } else {
+            $data = fetch_json_cached('locations', (string)$locId, BASE_URL . "/location/{$locId}");
+            if ($data === null) {
+                echo "  WARN: Failed to fetch location/{$locId}, skipping\n";
+            }
+            $fetchedLocations++;
+        }
+
+        if ($processedLocations % 50 === 0 || $processedLocations === $totalLocations) {
+            echo "  Locations: {$processedLocations}/{$totalLocations} (fetched: {$fetchedLocations}, cached: {$skippedLocations})\n";
+        }
+    }
+    echo "\n";
+
     // Summary
     echo "=== Fetch Complete ===\n";
     echo "  Pokemon:   {$totalSpecies} entries\n";
@@ -686,7 +737,7 @@ function main(): void {
     echo "  Abilities: {$totalAbilities} entries\n";
     echo "  Items:     {$totalItems} entries\n";
     $itemSpritesTotal = $itemSpritesFetched + $itemSpritesCached;
-    echo "  Item Sprites:   {$itemSpritesTotal} downloaded, {$itemSpritesMissing} missing\n";
+    echo "  Item Sprites:   {$itemSpritesTotal} downloaded, {$itemSpritesSkipped} no sprite\n";
     echo "  Natures:   {$totalNatures} entries\n";
     echo "  Egg Groups: {$totalEggGroups} entries\n";
     echo "  Berries:   {$totalBerries} entries\n";
@@ -694,6 +745,7 @@ function main(): void {
     echo "  Machines:  {$totalMachines} entries\n";
     echo "  Encounters: {$totalSpecies} entries\n";
     echo "  Location Areas: {$totalLocationAreas} entries\n";
+    echo "  Locations: {$totalLocations} entries\n";
     echo "  Cache dir: " . realpath(CACHE_DIR) . "\n\n";
     echo "Next step: php tools/process.php\n";
 }

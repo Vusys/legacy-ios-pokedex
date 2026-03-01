@@ -1,22 +1,23 @@
 #!/bin/bash
-set -e
+set -eo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/config.sh"
 
 # Devices: name host
 DEVICES=(
-    "iPad:192.168.1.117"
-    "iPod:192.168.1.165"
-    "iPad 8.4.1:192.168.1.160"
+    "iPad 4 (6.1.3):192.168.1.117"
+    "iPod 5 (6.1.3):192.168.1.165"
+#    "iPad mini (8.4.1):192.168.1.160"
+#    "iPhone 4S (6.1.3):192.168.1.145"
 )
 
 # Colors
-BOLD='\033[1m'
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-CYAN='\033[0;36m'
-DIM='\033[2m'
-RESET='\033[0m'
+BOLD=$'\033[1m'
+GREEN=$'\033[0;32m'
+RED=$'\033[0;31m'
+CYAN=$'\033[0;36m'
+DIM=$'\033[2m'
+RESET=$'\033[0m'
 
 # Find IPA: use argument or latest from builds/
 if [ -n "$1" ]; then
@@ -36,17 +37,13 @@ REMOTE_PATH="/tmp/$IPA_NAME"
 echo -e "${BOLD}${CYAN}==> Installing ${IPA_NAME} on ${#DEVICES[@]} devices${RESET}"
 echo ""
 
-# Prefix every line of stdin with the device name tag
-tag() {
-    local name=$1
-    while IFS= read -r line; do
-        echo -e "  ${BOLD}[${name}]${RESET} $line"
-    done
-}
+export BOLD GREEN RED CYAN DIM RESET
+export IPA_PATH IPAD_USER IPAD_PASS REMOTE_PATH
 
 install_on_device() {
-    local name=$1
-    local host=$2
+    local entry=$1
+    local name="${entry%%:*}"
+    local host="${entry##*:}"
     local start=$(date +%s)
 
     echo "${DIM}($host)${RESET} Sending IPA..."
@@ -60,41 +57,10 @@ install_on_device() {
     local elapsed=$(( $(date +%s) - start ))
     echo "${GREEN}Done${RESET} ${DIM}(${elapsed}s)${RESET}"
 }
+export -f install_on_device
 
-# Run all devices in parallel, streaming output with device tags
-PIDS=()
-STATUS_FILES=()
-for entry in "${DEVICES[@]}"; do
-    name="${entry%%:*}"
-    host="${entry##*:}"
-    STATUS_FILE=$(mktemp)
-    STATUS_FILES+=("$name:$STATUS_FILE")
-    (
-        install_on_device "$name" "$host" 2>&1 | tag "$name"
-        echo "${PIPESTATUS[0]}" > "$STATUS_FILE"
-    ) &
-    PIDS+=($!)
-done
-
-# Wait for all and check results
-FAILED=0
-for i in "${!PIDS[@]}"; do
-    wait "${PIDS[$i]}" || true
-    info=${STATUS_FILES[$i]}
-    name="${info%%:*}"
-    sf="${info##*:}"
-    exit_code=$(cat "$sf" 2>/dev/null)
-    rm -f "$sf"
-    if [ "${exit_code:-1}" -ne 0 ]; then
-        echo -e "  ${BOLD}[$name]${RESET} ${RED}FAILED${RESET}"
-        FAILED=$((FAILED + 1))
-    fi
-done
-
-echo ""
-if [ $FAILED -eq 0 ]; then
-    echo -e "${BOLD}${GREEN}All devices installed successfully.${RESET}"
-else
-    echo -e "${BOLD}${RED}${FAILED} device(s) failed.${RESET}"
-    exit 1
-fi
+# Run all devices in parallel (kills cleanly with the script)
+printf '%s\n' "${DEVICES[@]}" | parallel --will-cite --line-buffer --halt now,fail=1 --tagstring '  '"${BOLD}"'[{= s/:.*// =}]'"${RESET}" \
+    'install_on_device {}' \
+    && { echo ""; echo -e "${BOLD}${GREEN}All devices installed successfully.${RESET}"; } \
+    || { echo ""; echo -e "${BOLD}${RED}Some device(s) failed.${RESET}"; exit 1; }

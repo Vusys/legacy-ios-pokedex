@@ -53,6 +53,7 @@ define('BERRIES_DIR', DATA_DIR . '/berries');
 define('BERRY_SPRITES_SRC', CACHE_DIR . '/sprites-berries');
 define('BERRY_SPRITES_DST', SRC_DIR . '/sprites/berries');
 define('ENCOUNTERS_DIR', DATA_DIR . '/encounters');
+define('LOCATIONS_DIR', DATA_DIR . '/locations');
 
 // Standard community-agreed Pokemon type colors
 define('TYPE_COLORS', [
@@ -687,6 +688,7 @@ function main(): void {
     if (!is_dir(BERRIES_DIR)) mkdir(BERRIES_DIR, 0755, true);
     if (!is_dir(BERRY_SPRITES_DST)) mkdir(BERRY_SPRITES_DST, 0755, true);
     if (!is_dir(ENCOUNTERS_DIR)) mkdir(ENCOUNTERS_DIR, 0755, true);
+    if (!is_dir(LOCATIONS_DIR)) mkdir(LOCATIONS_DIR, 0755, true);
 
     // Determine how many species we have cached
     $speciesFiles = glob(CACHE_DIR . '/species/*.json');
@@ -1649,6 +1651,204 @@ function main(): void {
     }
     echo "  Wrote {$encounterCount} encounter plists ({$emptyEncounters} Pokemon have no wild encounters)\n\n";
 
+    // Process location data (inverse of encounters: location → Pokemon)
+    echo "--- Processing Locations ---\n";
+
+    // Build location-area → parent location mapping
+    $laToLocation = []; // location-area slug → {location_id, area_display_name}
+    $locationInfo = []; // location_id → {name, region}
+    $laFiles2 = glob(CACHE_DIR . '/location-areas/*.json');
+    foreach ($laFiles2 as $f) {
+        $laJson = json_decode(file_get_contents($f), true);
+        if (!$laJson) continue;
+        $laSlug = $laJson['name'] ?? '';
+        if (!$laSlug) continue;
+
+        // Get parent location ID
+        $locUrl = $laJson['location']['url'] ?? '';
+        $locId = null;
+        if (preg_match('/\/location\/(\d+)\/?$/', $locUrl, $m)) {
+            $locId = (int)$m[1];
+        }
+        if ($locId === null) continue;
+
+        // Get area display name (English or fallback)
+        $areaName = '';
+        foreach ($laJson['names'] ?? [] as $n) {
+            if (($n['language']['name'] ?? '') === 'en') {
+                $areaName = $n['name'];
+                break;
+            }
+        }
+        if (!$areaName) {
+            $areaName = title_case_name($laSlug);
+        }
+
+        $laToLocation[$laSlug] = [
+            'location_id' => $locId,
+            'area_display_name' => $areaName,
+        ];
+    }
+    echo "  Mapped " . count($laToLocation) . " location-areas to parent locations.\n";
+
+    // Load parent location data
+    $locFiles = glob(CACHE_DIR . '/locations/*.json');
+    foreach ($locFiles as $f) {
+        $locJson = json_decode(file_get_contents($f), true);
+        if (!$locJson) continue;
+        $locId = $locJson['id'] ?? 0;
+        if ($locId <= 0) continue;
+
+        $name = get_english_name($locJson['names'] ?? [], $locJson['name'] ?? '');
+        $region = '';
+        if (isset($locJson['region']['name'])) {
+            $region = title_case_name($locJson['region']['name']);
+        }
+
+        // Collect area names for this location
+        $areas = [];
+        foreach ($locJson['areas'] ?? [] as $area) {
+            $areaSlug = $area['name'] ?? '';
+            if (isset($laToLocation[$areaSlug])) {
+                $areas[] = $laToLocation[$areaSlug]['area_display_name'];
+            }
+        }
+
+        $locationInfo[$locId] = [
+            'name' => $name,
+            'region' => $region,
+            'areas' => $areas,
+        ];
+    }
+    echo "  Loaded " . count($locationInfo) . " parent locations.\n";
+
+    // Build Pokemon name lookup for encounter inversion
+    $pokemonNameForId = [];
+    foreach ($index as $entry) {
+        $pokemonNameForId[$entry['id']] = $entry['name'];
+    }
+
+    // Invert encounter data: scan all encounter cache files
+    // location_id → version_slug → [{pokemon_id, pokemon_name, method, min_level, max_level, chance, area}]
+    $locationEncounters = [];
+    $locationPokemonSets = []; // location_id → set of pokemon IDs (for count)
+
+    foreach ($speciesIds as $pokemonId) {
+        $encPath = CACHE_DIR . "/encounters/{$pokemonId}.json";
+        if (!file_exists($encPath)) continue;
+        $encData = json_decode(file_get_contents($encPath), true);
+        if (!is_array($encData) || empty($encData)) continue;
+
+        $pokemonName = $pokemonNameForId[$pokemonId] ?? "Pokemon #{$pokemonId}";
+
+        foreach ($encData as $areaEntry) {
+            $areaSlug = $areaEntry['location_area']['name'] ?? '';
+            if (!isset($laToLocation[$areaSlug])) continue;
+
+            $locId = $laToLocation[$areaSlug]['location_id'];
+            $areaDisplayName = $laToLocation[$areaSlug]['area_display_name'];
+
+            if (!isset($locationEncounters[$locId])) {
+                $locationEncounters[$locId] = [];
+                $locationPokemonSets[$locId] = [];
+            }
+            $locationPokemonSets[$locId][$pokemonId] = true;
+
+            foreach ($areaEntry['version_details'] ?? [] as $vd) {
+                $versionSlug = $vd['version']['name'] ?? '';
+                if (!$versionSlug) continue;
+
+                if (!isset($locationEncounters[$locId][$versionSlug])) {
+                    $locationEncounters[$locId][$versionSlug] = [];
+                }
+
+                // Consolidate encounter details for this pokemon+area+version
+                $bestChance = 0;
+                $minLvl = 999;
+                $maxLvl = 0;
+                $methodSlug = '';
+
+                foreach ($vd['encounter_details'] ?? [] as $ed) {
+                    $methodSlug = $ed['method']['name'] ?? $methodSlug;
+                    $minLvl = min($minLvl, $ed['min_level'] ?? 0);
+                    $maxLvl = max($maxLvl, $ed['max_level'] ?? 0);
+                    $bestChance = max($bestChance, $ed['chance'] ?? 0);
+                }
+
+                $key = "{$pokemonId}|{$areaDisplayName}|" . method_display_name($methodSlug);
+                if (!isset($locationEncounters[$locId][$versionSlug][$key])) {
+                    $locationEncounters[$locId][$versionSlug][$key] = [
+                        'id' => $pokemonId,
+                        'name' => $pokemonName,
+                        'method' => method_display_name($methodSlug),
+                        'min_level' => $minLvl == 999 ? 0 : $minLvl,
+                        'max_level' => $maxLvl,
+                        'chance' => $bestChance,
+                        'area' => $areaDisplayName,
+                    ];
+                } else {
+                    $existing = &$locationEncounters[$locId][$versionSlug][$key];
+                    $existing['min_level'] = min($existing['min_level'], $minLvl == 999 ? 0 : $minLvl);
+                    $existing['max_level'] = max($existing['max_level'], $maxLvl);
+                    $existing['chance'] = max($existing['chance'], $bestChance);
+                }
+            }
+        }
+    }
+    echo "  Found encounters for " . count($locationEncounters) . " locations.\n";
+
+    // Generate location plists
+    $locationIndex = [];
+    $locationPlistCount = 0;
+
+    foreach ($locationEncounters as $locId => $versionData) {
+        if (!isset($locationInfo[$locId])) continue;
+        $info = $locationInfo[$locId];
+
+        // Sort versions chronologically
+        uksort($versionData, fn($a, $b) => version_sort_order($a) - version_sort_order($b));
+
+        $versions = [];
+        foreach ($versionData as $versionSlug => $encounters) {
+            $pokemonList = array_values($encounters);
+            // Sort by dex number
+            usort($pokemonList, fn($a, $b) => $a['id'] - $b['id']);
+
+            $versions[] = [
+                'version' => version_display_name($versionSlug),
+                'pokemon' => $pokemonList,
+            ];
+        }
+
+        $pokemonCount = count($locationPokemonSets[$locId] ?? []);
+        $areas = $info['areas'];
+
+        $detail = [
+            'id' => (int)$locId,
+            'name' => $info['name'],
+            'region' => $info['region'],
+            'areas' => $areas,
+            'versions' => $versions,
+        ];
+
+        write_plist(LOCATIONS_DIR . "/{$locId}.plist", $detail);
+        $locationPlistCount++;
+
+        $locationIndex[] = [
+            'id' => (int)$locId,
+            'name' => $info['name'],
+            'region' => $info['region'],
+            'pokemon_count' => $pokemonCount,
+            'area_count' => count($areas),
+        ];
+    }
+
+    // Sort index by id
+    usort($locationIndex, fn($a, $b) => $a['id'] - $b['id']);
+    write_plist(LOCATIONS_DIR . '/index.plist', $locationIndex);
+    echo "  Wrote locations/index.plist (" . count($locationIndex) . " entries)\n";
+    echo "  Wrote {$locationPlistCount} location detail plists\n\n";
+
     echo "=== Processing Complete ===\n";
     echo "  Index:      " . DATA_DIR . "/index.plist ({$processed} Pokemon)\n";
     echo "  Types:      " . DATA_DIR . "/types.plist (" . count($typesData) . " types)\n";
@@ -1663,6 +1863,7 @@ function main(): void {
     echo "  Berries:    " . BERRIES_DIR . "/ ({$processedBerriesCount} plists)\n";
     echo "  Berry sprites: " . BERRY_SPRITES_DST . "/ ({$berrySpritesCopied} files)\n";
     echo "  Encounters: " . ENCOUNTERS_DIR . "/ ({$encounterCount} plists)\n";
+    echo "  Locations:  " . LOCATIONS_DIR . "/ ({$locationPlistCount} plists)\n";
 }
 
 main();

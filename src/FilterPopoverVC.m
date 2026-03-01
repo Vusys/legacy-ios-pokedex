@@ -63,6 +63,7 @@ static NSString *generationDisplayName(NSString *gen) {
     if ([_filterMode isEqualToString:@"natures"])    return @[@"Number", @"Name"];
     if ([_filterMode isEqualToString:@"egg_groups"]) return @[@"Number", @"Name"];
     if ([_filterMode isEqualToString:@"berries"])    return @[@"Number", @"Name", @"Power"];
+    if ([_filterMode isEqualToString:@"locations"])  return @[@"Number", @"Name"];
     return @[@"Number", @"Name", @"Stat Total"]; // pokemon
 }
 
@@ -73,6 +74,7 @@ static NSString *generationDisplayName(NSString *gen) {
     if ([_filterMode isEqualToString:@"natures"])    return @[@"number", @"name"];
     if ([_filterMode isEqualToString:@"egg_groups"]) return @[@"number", @"name"];
     if ([_filterMode isEqualToString:@"berries"])    return @[@"number", @"name", @"power"];
+    if ([_filterMode isEqualToString:@"locations"])  return @[@"number", @"name"];
     return @[@"number", @"name", @"stat_total"]; // pokemon
 }
 
