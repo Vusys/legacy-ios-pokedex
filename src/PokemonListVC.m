@@ -4,6 +4,7 @@
 #import "DataManager.h"
 #import "FilterState.h"
 #import "FilterPopoverVC.h"
+#import "NavBarStyle.h"
 #import <QuartzCore/QuartzCore.h>
 
 #define CELL_HEIGHT 64
@@ -72,27 +73,9 @@
 }
 
 - (void)styleNavBar {
-    // Red gradient nav bar
-    CGSize navSize = CGSizeMake(1, 44);
-    UIGraphicsBeginImageContextWithOptions(navSize, YES, 0);
-    CGContextRef ctx = UIGraphicsGetCurrentContext();
-
-    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-    CGFloat colors[] = {
-        0.55, 0.0, 0.0, 1.0,   // dark red top
-        0.80, 0.0, 0.0, 1.0    // brighter red bottom
-    };
-    CGGradientRef gradient = CGGradientCreateWithColorComponents(colorSpace, colors, NULL, 2);
-    CGContextDrawLinearGradient(ctx, gradient,
-        CGPointMake(0, 0), CGPointMake(0, navSize.height), 0);
-    CGGradientRelease(gradient);
-    CGColorSpaceRelease(colorSpace);
-
-    UIImage *navImage = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
-
-    [self.navigationController.navigationBar setBackgroundImage:navImage
-        forBarMetrics:UIBarMetricsDefault];
+    [self.navigationController.navigationBar
+        setBackgroundImage:NavBarGradientImage(0.55, 0.0, 0.0, 0.80, 0.0, 0.0)
+             forBarMetrics:UIBarMetricsDefault];
 
     self.navigationController.navigationBar.titleTextAttributes = @{
         UITextAttributeTextColor: [UIColor whiteColor],

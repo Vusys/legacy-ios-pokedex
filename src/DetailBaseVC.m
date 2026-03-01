@@ -2,6 +2,7 @@
 #import "DetailConstants.h"
 #import "TexturedBackgroundView.h"
 #import "DataManager.h"
+#import "NavBarStyle.h"
 #import <QuartzCore/QuartzCore.h>
 
 @implementation DetailBaseVC
@@ -86,23 +87,8 @@
     CGFloat bottom[4] = {0, 0, 0, 1};
     [self navBarGradientTopColor:top bottomColor:bottom];
 
-    CGSize navSize = CGSizeMake(1, 44);
-    UIGraphicsBeginImageContextWithOptions(navSize, YES, 0);
-    CGContextRef ctx = UIGraphicsGetCurrentContext();
-
-    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-    CGFloat colors[] = {
-        top[0], top[1], top[2], top[3],
-        bottom[0], bottom[1], bottom[2], bottom[3]
-    };
-    CGGradientRef gradient = CGGradientCreateWithColorComponents(colorSpace, colors, NULL, 2);
-    CGContextDrawLinearGradient(ctx, gradient,
-        CGPointMake(0, 0), CGPointMake(0, navSize.height), 0);
-    CGGradientRelease(gradient);
-    CGColorSpaceRelease(colorSpace);
-
-    UIImage *navImage = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
+    UIImage *navImage = NavBarGradientImage(top[0], top[1], top[2],
+                                              bottom[0], bottom[1], bottom[2]);
 
     [self.navigationController.navigationBar setBackgroundImage:navImage
         forBarMetrics:UIBarMetricsDefault];
