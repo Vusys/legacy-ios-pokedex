@@ -20,6 +20,7 @@
         [self buildSections];
         [self setupHeaderView];
         [self.tableView reloadData];
+        [self setupFavouriteButton];
     } else {
         [self showEmptyState];
     }
@@ -28,6 +29,9 @@
 - (BOOL)hasData {
     return self.nature != nil;
 }
+
+- (NSString *)favouriteEntityType { return @"natures"; }
+- (NSInteger)favouriteEntityID { return self.natureID; }
 
 - (void)loadNature {
     NSArray *summaries = [[DataManager sharedManager] allNatureSummaries];

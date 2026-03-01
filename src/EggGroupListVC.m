@@ -2,6 +2,8 @@
 #import "EggGroupCell.h"
 #import "EggGroupDetailVC.h"
 #import "DataManager.h"
+#import "FilterState.h"
+#import "FilterPopoverVC.h"
 #import <QuartzCore/QuartzCore.h>
 
 #define EGGGROUP_CELL_HEIGHT 44
@@ -12,6 +14,9 @@
 @property (nonatomic, strong) NSArray *displayedEggGroups;
 @property (nonatomic, strong) NSArray *filteredEggGroups;
 @property (nonatomic, strong) UISearchDisplayController *searchDC;
+@property (nonatomic, strong) FilterState *filterState;
+@property (nonatomic, strong) UIPopoverController *filterPopover;
+@property (nonatomic, strong) UIBarButtonItem *filterButton;
 @end
 
 @implementation EggGroupListVC
@@ -20,11 +25,20 @@
     [super viewDidLoad];
 
     self.title = @"Egg Groups";
+    self.filterState = [[FilterState alloc] init];
     self.allEggGroups = [[DataManager sharedManager] allEggGroupSummaries];
     self.displayedEggGroups = self.allEggGroups;
     self.filteredEggGroups = @[];
 
     [self styleNavBar];
+
+    // Filter button in nav bar
+    _filterButton = [[UIBarButtonItem alloc]
+        initWithTitle:@"Filter"
+                style:UIBarButtonItemStyleBordered
+               target:self
+               action:@selector(showFilterPopover:)];
+    self.navigationItem.rightBarButtonItem = _filterButton;
 
     // Search bar as table header
     UISearchBar *searchBar = [[UISearchBar alloc]
@@ -39,6 +53,21 @@
     self.searchDC.delegate = self;
     self.searchDC.searchResultsDataSource = self;
     self.searchDC.searchResultsDelegate = self;
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self selector:@selector(favouritesDidChange:)
+               name:FavouritesChangedNotification object:nil];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)favouritesDidChange:(NSNotification *)note {
+    if (_filterState.showFavouritesOnly) {
+        [self recomputeDisplayedEggGroups];
+        [self.tableView reloadData];
+    }
 }
 
 - (void)styleNavBar {
@@ -69,6 +98,68 @@
         UITextAttributeTextShadowOffset: [NSValue valueWithUIOffset:UIOffsetMake(0, -1)],
         UITextAttributeFont: [UIFont boldSystemFontOfSize:20]
     };
+}
+
+#pragma mark - Filter
+
+- (void)showFilterPopover:(UIBarButtonItem *)sender {
+    FilterPopoverVC *filterVC = [[FilterPopoverVC alloc] init];
+    filterVC.filterState = [_filterState copy];
+    filterVC.filterMode = @"egg_groups";
+    filterVC.delegate = self;
+
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        if (_filterPopover && _filterPopover.isPopoverVisible) {
+            [_filterPopover dismissPopoverAnimated:YES];
+            return;
+        }
+        [filterVC view];
+        _filterPopover = [[UIPopoverController alloc] initWithContentViewController:filterVC];
+        [_filterPopover presentPopoverFromBarButtonItem:sender
+                               permittedArrowDirections:UIPopoverArrowDirectionAny
+                                               animated:YES];
+    } else {
+        UINavigationController *filterNav = [[UINavigationController alloc]
+            initWithRootViewController:filterVC];
+        [self presentViewController:filterNav animated:YES completion:nil];
+    }
+}
+
+- (void)filterPopoverDidApply:(FilterState *)filterState {
+    self.filterState = filterState;
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        [_filterPopover dismissPopoverAnimated:YES];
+    } else {
+        [self dismissViewControllerAnimated:YES completion:nil];
+    }
+    [self recomputeDisplayedEggGroups];
+    [self updateFilterButtonTitle];
+    [self.tableView reloadData];
+}
+
+- (void)recomputeDisplayedEggGroups {
+    if (![_filterState hasActiveFilters] &&
+        [_filterState.sortBy isEqualToString:@"number"]) {
+        self.displayedEggGroups = self.allEggGroups;
+    } else {
+        self.displayedEggGroups = [[DataManager sharedManager]
+            searchEggGroupsWithQuery:nil
+                              sortBy:_filterState.sortBy];
+    }
+    if (_filterState.showFavouritesOnly) {
+        self.displayedEggGroups = [[DataManager sharedManager]
+            filterSummaries:self.displayedEggGroups byFavouritesOfType:@"egg_groups"];
+    }
+}
+
+- (void)updateFilterButtonTitle {
+    NSUInteger count = [_filterState activeFilterCount];
+    if (count > 0) {
+        _filterButton.title = [NSString stringWithFormat:@"Filter (%lu)",
+                               (unsigned long)count];
+    } else {
+        _filterButton.title = @"Filter";
+    }
 }
 
 #pragma mark - UITableViewDataSource
@@ -135,7 +226,11 @@
     shouldReloadTableForSearchString:(NSString *)searchString {
     self.filteredEggGroups = [[DataManager sharedManager]
         searchEggGroupsWithQuery:searchString
-                          sortBy:@"number"];
+                          sortBy:_filterState.sortBy];
+    if (_filterState.showFavouritesOnly) {
+        self.filteredEggGroups = [[DataManager sharedManager]
+            filterSummaries:self.filteredEggGroups byFavouritesOfType:@"egg_groups"];
+    }
     return YES;
 }
 

@@ -2,6 +2,8 @@
 #import "NatureCell.h"
 #import "NatureDetailVC.h"
 #import "DataManager.h"
+#import "FilterState.h"
+#import "FilterPopoverVC.h"
 #import <QuartzCore/QuartzCore.h>
 
 #define NATURE_CELL_HEIGHT 50
@@ -12,6 +14,9 @@
 @property (nonatomic, strong) NSArray *displayedNatures;
 @property (nonatomic, strong) NSArray *filteredNatures;
 @property (nonatomic, strong) UISearchDisplayController *searchDC;
+@property (nonatomic, strong) FilterState *filterState;
+@property (nonatomic, strong) UIPopoverController *filterPopover;
+@property (nonatomic, strong) UIBarButtonItem *filterButton;
 @end
 
 @implementation NatureListVC
@@ -20,11 +25,20 @@
     [super viewDidLoad];
 
     self.title = @"Natures";
+    self.filterState = [[FilterState alloc] init];
     self.allNatures = [[DataManager sharedManager] allNatureSummaries];
     self.displayedNatures = self.allNatures;
     self.filteredNatures = @[];
 
     [self styleNavBar];
+
+    // Filter button in nav bar
+    _filterButton = [[UIBarButtonItem alloc]
+        initWithTitle:@"Filter"
+                style:UIBarButtonItemStyleBordered
+               target:self
+               action:@selector(showFilterPopover:)];
+    self.navigationItem.rightBarButtonItem = _filterButton;
 
     // Search bar as table header
     UISearchBar *searchBar = [[UISearchBar alloc]
@@ -39,6 +53,21 @@
     self.searchDC.delegate = self;
     self.searchDC.searchResultsDataSource = self;
     self.searchDC.searchResultsDelegate = self;
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self selector:@selector(favouritesDidChange:)
+               name:FavouritesChangedNotification object:nil];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)favouritesDidChange:(NSNotification *)note {
+    if (_filterState.showFavouritesOnly) {
+        [self recomputeDisplayedNatures];
+        [self.tableView reloadData];
+    }
 }
 
 - (void)styleNavBar {
@@ -69,6 +98,68 @@
         UITextAttributeTextShadowOffset: [NSValue valueWithUIOffset:UIOffsetMake(0, -1)],
         UITextAttributeFont: [UIFont boldSystemFontOfSize:20]
     };
+}
+
+#pragma mark - Filter
+
+- (void)showFilterPopover:(UIBarButtonItem *)sender {
+    FilterPopoverVC *filterVC = [[FilterPopoverVC alloc] init];
+    filterVC.filterState = [_filterState copy];
+    filterVC.filterMode = @"natures";
+    filterVC.delegate = self;
+
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        if (_filterPopover && _filterPopover.isPopoverVisible) {
+            [_filterPopover dismissPopoverAnimated:YES];
+            return;
+        }
+        [filterVC view];
+        _filterPopover = [[UIPopoverController alloc] initWithContentViewController:filterVC];
+        [_filterPopover presentPopoverFromBarButtonItem:sender
+                               permittedArrowDirections:UIPopoverArrowDirectionAny
+                                               animated:YES];
+    } else {
+        UINavigationController *filterNav = [[UINavigationController alloc]
+            initWithRootViewController:filterVC];
+        [self presentViewController:filterNav animated:YES completion:nil];
+    }
+}
+
+- (void)filterPopoverDidApply:(FilterState *)filterState {
+    self.filterState = filterState;
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        [_filterPopover dismissPopoverAnimated:YES];
+    } else {
+        [self dismissViewControllerAnimated:YES completion:nil];
+    }
+    [self recomputeDisplayedNatures];
+    [self updateFilterButtonTitle];
+    [self.tableView reloadData];
+}
+
+- (void)recomputeDisplayedNatures {
+    if (![_filterState hasActiveFilters] &&
+        [_filterState.sortBy isEqualToString:@"number"]) {
+        self.displayedNatures = self.allNatures;
+    } else {
+        self.displayedNatures = [[DataManager sharedManager]
+            searchNaturesWithQuery:nil
+                            sortBy:_filterState.sortBy];
+    }
+    if (_filterState.showFavouritesOnly) {
+        self.displayedNatures = [[DataManager sharedManager]
+            filterSummaries:self.displayedNatures byFavouritesOfType:@"natures"];
+    }
+}
+
+- (void)updateFilterButtonTitle {
+    NSUInteger count = [_filterState activeFilterCount];
+    if (count > 0) {
+        _filterButton.title = [NSString stringWithFormat:@"Filter (%lu)",
+                               (unsigned long)count];
+    } else {
+        _filterButton.title = @"Filter";
+    }
 }
 
 #pragma mark - UITableViewDataSource
@@ -135,7 +226,11 @@
     shouldReloadTableForSearchString:(NSString *)searchString {
     self.filteredNatures = [[DataManager sharedManager]
         searchNaturesWithQuery:searchString
-                        sortBy:@"number"];
+                        sortBy:_filterState.sortBy];
+    if (_filterState.showFavouritesOnly) {
+        self.filteredNatures = [[DataManager sharedManager]
+            filterSummaries:self.filteredNatures byFavouritesOfType:@"natures"];
+    }
     return YES;
 }
 

@@ -53,6 +53,21 @@
     self.searchDC.delegate = self;
     self.searchDC.searchResultsDataSource = self;
     self.searchDC.searchResultsDelegate = self;
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self selector:@selector(favouritesDidChange:)
+               name:FavouritesChangedNotification object:nil];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)favouritesDidChange:(NSNotification *)note {
+    if (_filterState.showFavouritesOnly) {
+        [self recomputeDisplayedBerries];
+        [self.tableView reloadData];
+    }
 }
 
 - (void)styleNavBar {
@@ -132,6 +147,10 @@
                             types:_filterState.selectedTypes
                            sortBy:_filterState.sortBy];
     }
+    if (_filterState.showFavouritesOnly) {
+        self.displayedBerries = [[DataManager sharedManager]
+            filterSummaries:self.displayedBerries byFavouritesOfType:@"berries"];
+    }
 }
 
 - (void)updateFilterButtonTitle {
@@ -210,6 +229,10 @@
         searchBerriesWithQuery:searchString
                         types:_filterState.selectedTypes
                        sortBy:_filterState.sortBy];
+    if (_filterState.showFavouritesOnly) {
+        self.filteredBerries = [[DataManager sharedManager]
+            filterSummaries:self.filteredBerries byFavouritesOfType:@"berries"];
+    }
     return YES;
 }
 

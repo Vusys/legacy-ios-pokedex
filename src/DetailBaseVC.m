@@ -1,6 +1,7 @@
 #import "DetailBaseVC.h"
 #import "DetailConstants.h"
 #import "TexturedBackgroundView.h"
+#import "DataManager.h"
 #import <QuartzCore/QuartzCore.h>
 
 @implementation DetailBaseVC
@@ -130,6 +131,101 @@
 
 - (void)setupHeaderView {
     // Subclasses override
+}
+
+#pragma mark - Favourites
+
+- (NSString *)favouriteEntityType {
+    return nil;
+}
+
+- (NSInteger)favouriteEntityID {
+    return 0;
+}
+
+- (void)setupFavouriteButton {
+    NSString *type = [self favouriteEntityType];
+    NSInteger eid = [self favouriteEntityID];
+    if (!type || eid <= 0) return;
+
+    [self updateFavouriteButtonIcon];
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(favouritesDidChange:)
+               name:FavouritesChangedNotification
+             object:nil];
+}
+
+- (void)updateFavouriteButtonIcon {
+    BOOL isFav = [[DataManager sharedManager]
+        isFavourite:[self favouriteEntityID] type:[self favouriteEntityType]];
+    UIImage *starImage = [self starImageFilled:isFav size:24];
+    UIBarButtonItem *btn = [[UIBarButtonItem alloc]
+        initWithImage:starImage
+                style:UIBarButtonItemStylePlain
+               target:self
+               action:@selector(toggleFavourite)];
+    self.navigationItem.rightBarButtonItem = btn;
+}
+
+- (void)toggleFavourite {
+    [[DataManager sharedManager]
+        toggleFavourite:[self favouriteEntityID] type:[self favouriteEntityType]];
+    [self updateFavouriteButtonIcon];
+}
+
+- (void)favouritesDidChange:(NSNotification *)note {
+    NSString *type = note.userInfo[@"type"];
+    NSNumber *eid = note.userInfo[@"id"];
+    if ([type isEqualToString:[self favouriteEntityType]] &&
+        [eid integerValue] == [self favouriteEntityID]) {
+        [self updateFavouriteButtonIcon];
+    }
+}
+
+- (UIImage *)starImageFilled:(BOOL)filled size:(CGFloat)size {
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+
+    CGFloat cx = size / 2.0;
+    CGFloat cy = size / 2.0;
+    CGFloat outerR = size * 0.48;
+    CGFloat innerR = size * 0.20;
+
+    CGMutablePathRef path = CGPathCreateMutable();
+    for (int i = 0; i < 10; i++) {
+        CGFloat r = (i % 2 == 0) ? outerR : innerR;
+        CGFloat angle = (M_PI / 2.0) + (i * M_PI / 5.0);
+        CGFloat x = cx + r * cos(angle);
+        CGFloat y = cy - r * sin(angle);
+        if (i == 0) {
+            CGPathMoveToPoint(path, NULL, x, y);
+        } else {
+            CGPathAddLineToPoint(path, NULL, x, y);
+        }
+    }
+    CGPathCloseSubpath(path);
+
+    if (filled) {
+        [[UIColor colorWithRed:0.85 green:0.65 blue:0.0 alpha:1] setFill];
+        CGContextAddPath(ctx, path);
+        CGContextFillPath(ctx);
+    } else {
+        [[UIColor colorWithWhite:0.55 alpha:1] setStroke];
+        CGContextSetLineWidth(ctx, 1.5);
+        CGContextAddPath(ctx, path);
+        CGContextStrokePath(ctx);
+    }
+    CGPathRelease(path);
+
+    UIImage *img = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return img;
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 #pragma mark - UITableViewDataSource

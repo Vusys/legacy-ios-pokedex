@@ -20,6 +20,7 @@
         [self buildSections];
         [self setupHeaderView];
         [self.tableView reloadData];
+        [self setupFavouriteButton];
     } else {
         [self showEmptyState];
     }
@@ -28,6 +29,9 @@
 - (BOOL)hasData {
     return self.ability != nil;
 }
+
+- (NSString *)favouriteEntityType { return @"abilities"; }
+- (NSInteger)favouriteEntityID { return self.abilityID; }
 
 - (void)navBarGradientTopColor:(CGFloat *)top bottomColor:(CGFloat *)bottom {
     top[0] = 0.15; top[1] = 0.40; top[2] = 0.20; top[3] = 1.0;

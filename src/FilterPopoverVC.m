@@ -34,6 +34,7 @@ static NSString *generationDisplayName(NSString *gen) {
 @property (nonatomic, strong) NSMutableArray *typeBadges;
 @property (nonatomic, strong) NSMutableArray *genButtons;
 @property (nonatomic, strong) NSMutableArray *catButtons;
+@property (nonatomic, strong) UIButton *favButton;
 @property (nonatomic, strong) UIView *bottomBar;
 @end
 
@@ -56,18 +57,22 @@ static NSString *generationDisplayName(NSString *gen) {
 }
 
 - (NSArray *)sortItemsForMode {
-    if ([_filterMode isEqualToString:@"moves"])     return @[@"Number", @"Name", @"Power"];
-    if ([_filterMode isEqualToString:@"abilities"]) return @[@"Number", @"Name"];
-    if ([_filterMode isEqualToString:@"items"])     return @[@"Number", @"Name", @"Cost"];
-    if ([_filterMode isEqualToString:@"berries"])   return @[@"Number", @"Name", @"Power"];
+    if ([_filterMode isEqualToString:@"moves"])      return @[@"Number", @"Name", @"Power"];
+    if ([_filterMode isEqualToString:@"abilities"])  return @[@"Number", @"Name"];
+    if ([_filterMode isEqualToString:@"items"])      return @[@"Number", @"Name", @"Cost"];
+    if ([_filterMode isEqualToString:@"natures"])    return @[@"Number", @"Name"];
+    if ([_filterMode isEqualToString:@"egg_groups"]) return @[@"Number", @"Name"];
+    if ([_filterMode isEqualToString:@"berries"])    return @[@"Number", @"Name", @"Power"];
     return @[@"Number", @"Name", @"Stat Total"]; // pokemon
 }
 
 - (NSArray *)sortKeysForMode {
-    if ([_filterMode isEqualToString:@"moves"])     return @[@"number", @"name", @"power"];
-    if ([_filterMode isEqualToString:@"abilities"]) return @[@"number", @"name"];
-    if ([_filterMode isEqualToString:@"items"])     return @[@"number", @"name", @"cost"];
-    if ([_filterMode isEqualToString:@"berries"])   return @[@"number", @"name", @"power"];
+    if ([_filterMode isEqualToString:@"moves"])      return @[@"number", @"name", @"power"];
+    if ([_filterMode isEqualToString:@"abilities"])  return @[@"number", @"name"];
+    if ([_filterMode isEqualToString:@"items"])      return @[@"number", @"name", @"cost"];
+    if ([_filterMode isEqualToString:@"natures"])    return @[@"number", @"name"];
+    if ([_filterMode isEqualToString:@"egg_groups"]) return @[@"number", @"name"];
+    if ([_filterMode isEqualToString:@"berries"])    return @[@"number", @"name", @"power"];
     return @[@"number", @"name", @"stat_total"]; // pokemon
 }
 
@@ -97,6 +102,7 @@ static NSString *generationDisplayName(NSString *gen) {
 
     // Compute popover height based on content
     CGFloat contentHeight = SECTION_PADDING;
+    contentHeight += 42; // favourites toggle
     contentHeight += SECTION_HEADER_HEIGHT + 38; // sort
     if ([self showTypes]) contentHeight += SECTION_HEADER_HEIGHT + 170; // type grid ~5 rows
     if ([self showGenerations]) contentHeight += SECTION_HEADER_HEIGHT + 105; // gen grid ~3 rows
@@ -118,6 +124,24 @@ static NSString *generationDisplayName(NSString *gen) {
     [self.view addSubview:_scrollView];
 
     CGFloat y = SECTION_PADDING;
+
+    // ─── Favourites ───
+    {
+        CGFloat btnW = 140;
+        CGFloat btnH = 30;
+        CGFloat startX = ([self contentWidth] - btnW) / 2;
+        _favButton = [UIButton buttonWithType:UIButtonTypeCustom];
+        _favButton.frame = CGRectMake(startX, y, btnW, btnH);
+        _favButton.layer.cornerRadius = 4;
+        _favButton.layer.borderWidth = 1;
+        _favButton.titleLabel.font = [UIFont boldSystemFontOfSize:12];
+        [_favButton setTitle:@"\u2605 Favourites Only" forState:UIControlStateNormal];
+        [_favButton addTarget:self action:@selector(favToggled:)
+              forControlEvents:UIControlEventTouchUpInside];
+        [self styleFavButton:_favButton selected:_filterState.showFavouritesOnly];
+        [_scrollView addSubview:_favButton];
+        y += btnH + SECTION_PADDING;
+    }
 
     // ─── Sort ───
     y = [self addSectionHeaderAtY:y title:@"Sort By"];
@@ -400,6 +424,25 @@ static NSString *generationDisplayName(NSString *gen) {
     }
 }
 
+#pragma mark - Favourites Toggle
+
+- (void)favToggled:(UIButton *)sender {
+    _filterState.showFavouritesOnly = !_filterState.showFavouritesOnly;
+    [self styleFavButton:sender selected:_filterState.showFavouritesOnly];
+}
+
+- (void)styleFavButton:(UIButton *)btn selected:(BOOL)selected {
+    if (selected) {
+        btn.backgroundColor = [UIColor colorWithRed:0.85 green:0.65 blue:0.0 alpha:1];
+        btn.layer.borderColor = [[UIColor colorWithRed:0.70 green:0.50 blue:0.0 alpha:1] CGColor];
+        [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    } else {
+        btn.backgroundColor = [UIColor whiteColor];
+        btn.layer.borderColor = [[UIColor colorWithWhite:0.75 alpha:1] CGColor];
+        [btn setTitleColor:[UIColor colorWithWhite:0.3 alpha:1] forState:UIControlStateNormal];
+    }
+}
+
 #pragma mark - Bottom Bar
 
 - (void)buildBottomBarAtY:(CGFloat)barY {
@@ -466,6 +509,7 @@ static NSString *generationDisplayName(NSString *gen) {
 #pragma mark - Refresh
 
 - (void)refreshAllControls {
+    [self styleFavButton:_favButton selected:_filterState.showFavouritesOnly];
     [self selectSortSegment];
 
     if ([self showTypes]) {

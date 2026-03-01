@@ -1,5 +1,6 @@
 #import "HomeVC.h"
 #import "AboutVC.h"
+#import "FavouritesVC.h"
 #import "DataManager.h"
 #import "TexturedBackgroundView.h"
 #import <QuartzCore/QuartzCore.h>
@@ -43,6 +44,19 @@
         [[UIBarButtonItem alloc] initWithCustomView:infoBtn];
 
     [self styleNavBar];
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self selector:@selector(favouritesDidChange:)
+               name:FavouritesChangedNotification object:nil];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)favouritesDidChange:(NSNotification *)note {
+    self.lastBuiltWidth = 0; // Force rebuild
+    [self rebuildGrid];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -168,13 +182,15 @@
 
     CGFloat cardW = frame.size.width;
 
-    // Icon (tinted gray, centered horizontally)
-    UIImage *icon = [self iconForIndex:idx];
+    // Icon (tinted gray for tabs, gold star for favourites)
+    UIImage *icon = [self iconForInfo:info];
     if (icon) {
-        UIImage *tinted = [self tintImage:icon
-                                withColor:[UIColor colorWithWhite:0.45 alpha:1]];
+        NSInteger tabIdx = [info[@"tabIndex"] integerValue];
+        UIImage *displayIcon = (tabIdx == -1) ? icon :
+            [self tintImage:icon
+                  withColor:[UIColor colorWithWhite:0.45 alpha:1]];
         UIImageView *iconView = [[UIImageView alloc]
-            initWithImage:tinted];
+            initWithImage:displayIcon];
         iconView.frame = CGRectMake((cardW - 30) / 2.0, 16, 30, 30);
         iconView.contentMode = UIViewContentModeCenter;
         [card addSubview:iconView];
@@ -212,6 +228,12 @@
 #pragma mark - Card Actions
 
 - (void)cardTapped:(UIButton *)sender {
+    if (sender.tag == -1) {
+        // Favourites card → push FavouritesVC
+        FavouritesVC *favVC = [[FavouritesVC alloc] initWithStyle:UITableViewStyleGrouped];
+        [self.navigationController pushViewController:favVC animated:YES];
+        return;
+    }
     self.tabBarController.selectedIndex = (NSUInteger)sender.tag;
 }
 
@@ -231,7 +253,15 @@
 
 - (NSArray *)sectionData {
     DataManager *dm = [DataManager sharedManager];
-    return @[
+    NSMutableArray *data = [[NSMutableArray alloc] init];
+
+    NSUInteger favCount = [dm totalFavouriteCount];
+    if (favCount > 0) {
+        [data addObject:@{@"name": @"Favourites", @"tabIndex": @(-1),
+                          @"count": @(favCount)}];
+    }
+
+    [data addObjectsFromArray:@[
         @{@"name": @"Pok\u00e9dex",    @"tabIndex": @1,
           @"count": @([dm totalPokemonCount])},
         @{@"name": @"Moves",       @"tabIndex": @2,
@@ -246,21 +276,57 @@
           @"count": @([[dm allEggGroupSummaries] count])},
         @{@"name": @"Berries",     @"tabIndex": @7,
           @"count": @([[dm allBerrySummaries] count])},
-    ];
+    ]];
+    return data;
 }
 
 #pragma mark - Icons
 
-- (UIImage *)iconForIndex:(NSUInteger)idx {
-    // Get icon from the corresponding tab's tabBarItem
-    // Tabs are at indices 1-7 (Home is 0)
-    NSUInteger tabIndex = idx + 1;
+- (UIImage *)iconForInfo:(NSDictionary *)info {
+    NSInteger tabIndex = [info[@"tabIndex"] integerValue];
+    if (tabIndex == -1) {
+        return [self starIconWithSize:CGSizeMake(30, 30)];
+    }
     NSArray *vcs = self.tabBarController.viewControllers;
-    if (tabIndex < vcs.count) {
-        UIViewController *vc = vcs[tabIndex];
+    if ((NSUInteger)tabIndex < vcs.count) {
+        UIViewController *vc = vcs[(NSUInteger)tabIndex];
         return vc.tabBarItem.image;
     }
     return nil;
+}
+
+- (UIImage *)starIconWithSize:(CGSize)size {
+    UIGraphicsBeginImageContextWithOptions(size, NO, 0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+
+    CGFloat w = size.width, h = size.height;
+    CGFloat cx = w / 2.0, cy = h / 2.0;
+    CGFloat outerR = MIN(w, h) / 2.0;
+    CGFloat innerR = outerR * 0.38;
+
+    CGMutablePathRef path = CGPathCreateMutable();
+    for (int i = 0; i < 10; i++) {
+        CGFloat angle = (CGFloat)i * M_PI / 5.0 - M_PI / 2.0;
+        CGFloat r = (i % 2 == 0) ? outerR : innerR;
+        CGFloat px = cx + r * cosf(angle);
+        CGFloat py = cy + r * sinf(angle);
+        if (i == 0) {
+            CGPathMoveToPoint(path, NULL, px, py);
+        } else {
+            CGPathAddLineToPoint(path, NULL, px, py);
+        }
+    }
+    CGPathCloseSubpath(path);
+
+    CGContextAddPath(ctx, path);
+    CGContextSetFillColorWithColor(ctx,
+        [UIColor colorWithRed:1.0 green:0.8 blue:0.0 alpha:1.0].CGColor);
+    CGContextFillPath(ctx);
+    CGPathRelease(path);
+
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return image;
 }
 
 - (UIImage *)tintImage:(UIImage *)image withColor:(UIColor *)color {

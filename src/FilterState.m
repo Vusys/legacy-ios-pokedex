@@ -14,18 +14,21 @@
 }
 
 - (BOOL)hasActiveFilters {
-    return _selectedTypes.count > 0 ||
+    return _showFavouritesOnly ||
+           _selectedTypes.count > 0 ||
            _selectedGenerations.count > 0 ||
            _selectedCategories.count > 0;
 }
 
 - (NSUInteger)activeFilterCount {
-    return _selectedTypes.count +
+    return (_showFavouritesOnly ? 1 : 0) +
+           _selectedTypes.count +
            _selectedGenerations.count +
            _selectedCategories.count;
 }
 
 - (void)reset {
+    _showFavouritesOnly = NO;
     [_selectedTypes removeAllObjects];
     [_selectedGenerations removeAllObjects];
     [_selectedCategories removeAllObjects];
@@ -36,6 +39,7 @@
 
 - (id)copyWithZone:(NSZone *)zone {
     FilterState *copy = [[[self class] allocWithZone:zone] init];
+    copy.showFavouritesOnly = _showFavouritesOnly;
     copy.selectedTypes = [_selectedTypes mutableCopy];
     copy.selectedGenerations = [_selectedGenerations mutableCopy];
     copy.selectedCategories = [_selectedCategories mutableCopy];

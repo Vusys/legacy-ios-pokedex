@@ -54,6 +54,21 @@
     self.searchDC.delegate = self;
     self.searchDC.searchResultsDataSource = self;
     self.searchDC.searchResultsDelegate = self;
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self selector:@selector(favouritesDidChange:)
+               name:FavouritesChangedNotification object:nil];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)favouritesDidChange:(NSNotification *)note {
+    if (_filterState.showFavouritesOnly) {
+        [self recomputeDisplayedPokemon];
+        [self.tableView reloadData];
+    }
 }
 
 - (void)styleNavBar {
@@ -136,6 +151,10 @@
                         categories:_filterState.selectedCategories
                             sortBy:_filterState.sortBy];
     }
+    if (_filterState.showFavouritesOnly) {
+        self.displayedPokemon = [[DataManager sharedManager]
+            filterSummaries:self.displayedPokemon byFavouritesOfType:@"pokemon"];
+    }
 }
 
 - (void)updateFilterButtonTitle {
@@ -217,6 +236,10 @@
                    generations:_filterState.selectedGenerations
                     categories:_filterState.selectedCategories
                         sortBy:_filterState.sortBy];
+    if (_filterState.showFavouritesOnly) {
+        self.filteredPokemon = [[DataManager sharedManager]
+            filterSummaries:self.filteredPokemon byFavouritesOfType:@"pokemon"];
+    }
     return YES;
 }
 

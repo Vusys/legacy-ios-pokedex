@@ -27,6 +27,7 @@
         [self buildSections];
         [self setupHeaderView];
         [self.tableView reloadData];
+        [self setupFavouriteButton];
     } else {
         [self showEmptyState];
     }
@@ -35,6 +36,9 @@
 - (BOOL)hasData {
     return self.move != nil;
 }
+
+- (NSString *)favouriteEntityType { return @"moves"; }
+- (NSInteger)favouriteEntityID { return self.moveID; }
 
 - (void)navBarGradientTopColor:(CGFloat *)top bottomColor:(CGFloat *)bottom {
     top[0] = 0.15; top[1] = 0.25; top[2] = 0.50; top[3] = 1.0;

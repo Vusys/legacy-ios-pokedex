@@ -9,6 +9,8 @@
 @class EggGroup;
 @class Berry;
 
+extern NSString *const FavouritesChangedNotification;
+
 @interface DataManager : NSObject
 
 + (instancetype)sharedManager;
@@ -94,5 +96,12 @@
 
 // Berry sprite
 - (UIImage *)spriteForBerryID:(NSInteger)berryID;
+
+// Favourites
+- (BOOL)isFavourite:(NSInteger)entityID type:(NSString *)entityType;
+- (void)toggleFavourite:(NSInteger)entityID type:(NSString *)entityType;
+- (NSSet *)favouriteIDsForType:(NSString *)entityType;
+- (NSUInteger)totalFavouriteCount;
+- (NSArray *)filterSummaries:(NSArray *)summaries byFavouritesOfType:(NSString *)type;
 
 @end

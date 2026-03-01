@@ -53,6 +53,21 @@
     self.searchDC.delegate = self;
     self.searchDC.searchResultsDataSource = self;
     self.searchDC.searchResultsDelegate = self;
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self selector:@selector(favouritesDidChange:)
+               name:FavouritesChangedNotification object:nil];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)favouritesDidChange:(NSNotification *)note {
+    if (_filterState.showFavouritesOnly) {
+        [self recomputeDisplayedAbilities];
+        [self.tableView reloadData];
+    }
 }
 
 - (void)styleNavBar {
@@ -132,6 +147,10 @@
                          generations:_filterState.selectedGenerations
                               sortBy:_filterState.sortBy];
     }
+    if (_filterState.showFavouritesOnly) {
+        self.displayedAbilities = [[DataManager sharedManager]
+            filterSummaries:self.displayedAbilities byFavouritesOfType:@"abilities"];
+    }
 }
 
 - (void)updateFilterButtonTitle {
@@ -210,6 +229,10 @@
         searchAbilitiesWithQuery:searchString
                      generations:_filterState.selectedGenerations
                           sortBy:_filterState.sortBy];
+    if (_filterState.showFavouritesOnly) {
+        self.filteredAbilities = [[DataManager sharedManager]
+            filterSummaries:self.filteredAbilities byFavouritesOfType:@"abilities"];
+    }
     return YES;
 }
 

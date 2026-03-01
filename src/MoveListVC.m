@@ -89,6 +89,21 @@
     self.searchDC.delegate = self;
     self.searchDC.searchResultsDataSource = self;
     self.searchDC.searchResultsDelegate = self;
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self selector:@selector(favouritesDidChange:)
+               name:FavouritesChangedNotification object:nil];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)favouritesDidChange:(NSNotification *)note {
+    if (_filterState.showFavouritesOnly) {
+        [self recomputeDisplayedMoves];
+        [self.tableView reloadData];
+    }
 }
 
 - (void)styleNavBar {
@@ -170,6 +185,10 @@
                    damageClasses:_filterState.selectedCategories
                           sortBy:_filterState.sortBy];
     }
+    if (_filterState.showFavouritesOnly) {
+        self.displayedMoves = [[DataManager sharedManager]
+            filterSummaries:self.displayedMoves byFavouritesOfType:@"moves"];
+    }
 }
 
 - (void)updateFilterButtonTitle {
@@ -250,6 +269,10 @@
                  generations:_filterState.selectedGenerations
                damageClasses:_filterState.selectedCategories
                       sortBy:_filterState.sortBy];
+    if (_filterState.showFavouritesOnly) {
+        self.filteredMoves = [[DataManager sharedManager]
+            filterSummaries:self.filteredMoves byFavouritesOfType:@"moves"];
+    }
     return YES;
 }
 

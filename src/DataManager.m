@@ -7,6 +7,8 @@
 #import "EggGroup.h"
 #import "Berry.h"
 
+NSString *const FavouritesChangedNotification = @"FavouritesChangedNotification";
+
 @interface DataManager ()
 @property (nonatomic, strong) NSArray *pokemonIndex;
 @property (nonatomic, strong) NSArray *movesIndex;
@@ -24,6 +26,7 @@
 @property (nonatomic, strong) NSArray *berriesIndex;
 @property (nonatomic, strong) NSMutableDictionary *eggGroupDetailCache;
 @property (nonatomic, strong) NSMutableDictionary *berryDetailCache;
+@property (nonatomic, strong) NSMutableDictionary *favourites; // type -> NSMutableSet of NSNumber IDs
 @end
 
 @implementation DataManager
@@ -48,6 +51,7 @@
         _spriteCache.countLimit = 500;
         _eggGroupDetailCache = [[NSMutableDictionary alloc] init];
         _berryDetailCache = [[NSMutableDictionary alloc] init];
+        [self loadFavourites];
     }
     return self;
 }
@@ -787,6 +791,77 @@
         [_spriteCache setObject:image forKey:key];
     }
     return image;
+}
+
+#pragma mark - Favourites
+
+- (void)loadFavourites {
+    _favourites = [[NSMutableDictionary alloc] init];
+    NSArray *types = @[@"pokemon", @"moves", @"abilities", @"items",
+                       @"natures", @"egg_groups", @"berries"];
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    for (NSString *type in types) {
+        NSString *key = [NSString stringWithFormat:@"favourites_%@", type];
+        NSArray *saved = [defaults objectForKey:key];
+        if (saved) {
+            _favourites[type] = [NSMutableSet setWithArray:saved];
+        } else {
+            _favourites[type] = [[NSMutableSet alloc] init];
+        }
+    }
+}
+
+- (void)saveFavouritesForType:(NSString *)type {
+    NSMutableSet *set = _favourites[type];
+    NSArray *array = [set allObjects];
+    NSString *key = [NSString stringWithFormat:@"favourites_%@", type];
+    [[NSUserDefaults standardUserDefaults] setObject:array forKey:key];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+}
+
+- (BOOL)isFavourite:(NSInteger)entityID type:(NSString *)entityType {
+    NSMutableSet *set = _favourites[entityType];
+    return [set containsObject:@(entityID)];
+}
+
+- (void)toggleFavourite:(NSInteger)entityID type:(NSString *)entityType {
+    NSMutableSet *set = _favourites[entityType];
+    if (!set) return;
+    NSNumber *num = @(entityID);
+    if ([set containsObject:num]) {
+        [set removeObject:num];
+    } else {
+        [set addObject:num];
+    }
+    [self saveFavouritesForType:entityType];
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:FavouritesChangedNotification
+                      object:self
+                    userInfo:@{@"type": entityType, @"id": num}];
+}
+
+- (NSSet *)favouriteIDsForType:(NSString *)entityType {
+    return [_favourites[entityType] copy] ?: [NSSet set];
+}
+
+- (NSUInteger)totalFavouriteCount {
+    NSUInteger count = 0;
+    for (NSMutableSet *set in [_favourites allValues]) {
+        count += set.count;
+    }
+    return count;
+}
+
+- (NSArray *)filterSummaries:(NSArray *)summaries byFavouritesOfType:(NSString *)type {
+    NSSet *favIDs = [self favouriteIDsForType:type];
+    if (favIDs.count == 0) return @[];
+    NSMutableArray *result = [[NSMutableArray alloc] init];
+    for (NSDictionary *summary in summaries) {
+        if ([favIDs containsObject:summary[@"id"]]) {
+            [result addObject:summary];
+        }
+    }
+    return result;
 }
 
 @end

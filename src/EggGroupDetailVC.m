@@ -19,6 +19,7 @@
         [self buildSections];
         [self setupHeaderView];
         [self.tableView reloadData];
+        [self setupFavouriteButton];
     } else {
         [self showEmptyState];
     }
@@ -27,6 +28,9 @@
 - (BOOL)hasData {
     return self.eggGroup != nil;
 }
+
+- (NSString *)favouriteEntityType { return @"egg_groups"; }
+- (NSInteger)favouriteEntityID { return self.eggGroupID; }
 
 - (void)navBarGradientTopColor:(CGFloat *)top bottomColor:(CGFloat *)bottom {
     top[0] = 0.15; top[1] = 0.45; top[2] = 0.50; top[3] = 1.0;

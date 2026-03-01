@@ -14,4 +14,9 @@
 - (BOOL)hasData;
 - (void)showEmptyState;
 
+// Favourites (subclasses override)
+- (NSString *)favouriteEntityType;
+- (NSInteger)favouriteEntityID;
+- (void)setupFavouriteButton;
+
 @end

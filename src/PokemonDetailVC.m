@@ -43,6 +43,7 @@
         [self buildSections];
         [self setupHeaderView];
         [self.tableView reloadData];
+        [self setupFavouriteButton];
     } else {
         [self showEmptyState];
     }
@@ -51,6 +52,9 @@
 - (BOOL)hasData {
     return self.pokemon != nil;
 }
+
+- (NSString *)favouriteEntityType { return @"pokemon"; }
+- (NSInteger)favouriteEntityID { return self.pokemonID; }
 
 - (void)navBarGradientTopColor:(CGFloat *)top bottomColor:(CGFloat *)bottom {
     top[0] = 0.55; top[1] = 0.0; top[2] = 0.0; top[3] = 1.0;

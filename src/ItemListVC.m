@@ -97,6 +97,21 @@
     self.searchDC.delegate = self;
     self.searchDC.searchResultsDataSource = self;
     self.searchDC.searchResultsDelegate = self;
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self selector:@selector(favouritesDidChange:)
+               name:FavouritesChangedNotification object:nil];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)favouritesDidChange:(NSNotification *)note {
+    if (_filterState.showFavouritesOnly) {
+        [self recomputeDisplayedItems];
+        [self.tableView reloadData];
+    }
 }
 
 - (void)styleNavBar {
@@ -167,7 +182,8 @@
 }
 
 - (void)recomputeDisplayedItems {
-    if ([_filterState.sortBy isEqualToString:@"number"]) {
+    if (![_filterState hasActiveFilters] &&
+        [_filterState.sortBy isEqualToString:@"number"]) {
         self.displayedItems = self.allItems;
     } else {
         NSArray *sorted = [[DataManager sharedManager]
@@ -178,11 +194,20 @@
         }
         self.displayedItems = sorted;
     }
+    if (_filterState.showFavouritesOnly) {
+        self.displayedItems = [[DataManager sharedManager]
+            filterSummaries:self.displayedItems byFavouritesOfType:@"items"];
+    }
 }
 
 - (void)updateFilterButtonTitle {
-    // Items mode only has sort, no active "filters" per se
-    _filterButton.title = @"Filter";
+    NSUInteger count = [_filterState activeFilterCount];
+    if (count > 0) {
+        _filterButton.title = [NSString stringWithFormat:@"Filter (%lu)",
+                               (unsigned long)count];
+    } else {
+        _filterButton.title = @"Filter";
+    }
 }
 
 #pragma mark - UITableViewDataSource
@@ -264,6 +289,10 @@
                       sortBy:_filterState.sortBy];
     if (_categoryFilter.length > 0) {
         results = [self filterItems:results byCategory:_categoryFilter];
+    }
+    if (_filterState.showFavouritesOnly) {
+        results = [[DataManager sharedManager]
+            filterSummaries:results byFavouritesOfType:@"items"];
     }
     self.filteredItems = results;
     return YES;
