@@ -505,6 +505,10 @@ NSString *const FavouritesChangedNotification = @"FavouritesChangedNotification"
 #pragma mark - Image Count
 
 - (NSUInteger)totalImageCount {
+    // Prefer precomputed stats to avoid filesystem walk
+    NSDictionary *stats = [self precomputedStats];
+    if (stats[@"image_count"]) return [stats[@"image_count"] unsignedIntegerValue];
+
     NSString *spritesDir = [[[NSBundle mainBundle] resourcePath]
         stringByAppendingPathComponent:@"sprites"];
     NSFileManager *fm = [NSFileManager defaultManager];
@@ -517,6 +521,23 @@ NSString *const FavouritesChangedNotification = @"FavouritesChangedNotification"
         }
     }
     return count;
+}
+
+#pragma mark - Precomputed Stats
+
+- (NSDictionary *)precomputedStats {
+    static NSDictionary *stats = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSString *path = [[NSBundle mainBundle] pathForResource:@"stats"
+                                                        ofType:@"plist"
+                                                   inDirectory:@"data"];
+        if (path) {
+            stats = [NSDictionary dictionaryWithContentsOfFile:path];
+        }
+        if (!stats) stats = @{};
+    });
+    return stats;
 }
 
 #pragma mark - Sprite Cache

@@ -65,7 +65,7 @@
 
 - (void)buildSections {
     NSMutableArray *sects = [[NSMutableArray alloc] init];
-    DataManager *dm = [DataManager sharedManager];
+    NSDictionary *stats = [[DataManager sharedManager] precomputedStats];
 
     NSNumberFormatter *fmt = [[NSNumberFormatter alloc] init];
     [fmt setNumberStyle:NSNumberFormatterDecimalStyle];
@@ -75,14 +75,16 @@
         NSMutableArray *rows = [[NSMutableArray alloc] init];
 
         NSArray *entries = @[
-            @[@"Pok\u00e9mon",   @([dm totalPokemonCount])],
-            @[@"Moves",      @([dm totalMoveCount])],
-            @[@"Abilities",  @([[dm allAbilitySummaries] count])],
-            @[@"Items",      @([[dm allItemSummaries] count])],
-            @[@"Natures",    @([[dm allNatureSummaries] count])],
-            @[@"Berries",    @([[dm allBerrySummaries] count])],
-            @[@"Types",      @([[dm allTypes] count])],
-            @[@"Images",     @([dm totalImageCount])],
+            @[@"Pok\u00e9mon",   stats[@"pokemon_count"]  ?: @0],
+            @[@"Moves",      stats[@"move_count"]     ?: @0],
+            @[@"Abilities",  stats[@"ability_count"]  ?: @0],
+            @[@"Items",      stats[@"item_count"]     ?: @0],
+            @[@"Natures",    stats[@"nature_count"]   ?: @0],
+            @[@"Berries",    stats[@"berry_count"]    ?: @0],
+            @[@"Types",      stats[@"type_count"]     ?: @0],
+            @[@"Egg Groups", stats[@"egg_group_count"] ?: @0],
+            @[@"Locations",  stats[@"location_count"] ?: @0],
+            @[@"Images",     stats[@"image_count"]    ?: @0],
         ];
 
         for (NSArray *entry in entries) {

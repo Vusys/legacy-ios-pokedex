@@ -78,6 +78,9 @@ extern NSString *const FavouritesChangedNotification;
 // Image count (all PNGs in sprites directory tree)
 - (NSUInteger)totalImageCount;
 
+// Precomputed stats (from data/stats.plist, for About page)
+- (NSDictionary *)precomputedStats;
+
 // Types data (for type effectiveness calculations)
 - (NSArray *)allTypes;
 
