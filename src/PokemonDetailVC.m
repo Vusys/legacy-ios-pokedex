@@ -393,9 +393,7 @@
     // Use root VC's view so the overlay inherits the rotation transform
     UIView *container = self.view.window.rootViewController.view;
     CGRect bounds = container.bounds;
-    CGFloat statusBarH = 20;
     CGFloat toolbarH = 44;
-    CGFloat topInset = statusBarH + toolbarH;
 
     UIView *overlay = [[UIView alloc] initWithFrame:bounds];
     overlay.backgroundColor = [UIColor whiteColor];
@@ -408,16 +406,9 @@
     overlay.frame = CGRectMake(0, bounds.size.height,
                                bounds.size.width, bounds.size.height);
 
-    // Black status bar background
-    UIView *statusBg = [[UIView alloc] initWithFrame:
-        CGRectMake(0, 0, bounds.size.width, statusBarH)];
-    statusBg.backgroundColor = [UIColor blackColor];
-    statusBg.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    [overlay addSubview:statusBg];
-
-    // iOS-style black toolbar below status bar
+    // Black toolbar at top (container is already below the status bar)
     UIToolbar *toolbar = [[UIToolbar alloc] initWithFrame:
-        CGRectMake(0, statusBarH, bounds.size.width, toolbarH)];
+        CGRectMake(0, 0, bounds.size.width, toolbarH)];
     toolbar.barStyle = UIBarStyleBlack;
     toolbar.tag = 8889;
     toolbar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
@@ -427,8 +418,8 @@
     [overlay addSubview:toolbar];
 
     // Image area below toolbar
-    CGRect imageArea = CGRectMake(0, topInset, bounds.size.width,
-                                  bounds.size.height - topInset);
+    CGRect imageArea = CGRectMake(0, toolbarH, bounds.size.width,
+                                  bounds.size.height - toolbarH);
     UIImageView *imageView = [[UIImageView alloc] initWithFrame:imageArea];
     imageView.backgroundColor = [UIColor whiteColor];
     imageView.tag = 8890;
@@ -664,7 +655,7 @@
     }
 
     NSMutableArray *sects = [[NSMutableArray alloc] init];
-    CGFloat tableWidth = self.tableView.bounds.size.width;
+    CGFloat tableWidth = [self cellContentWidth];
 
     CFAbsoluteTime totalStart = CFAbsoluteTimeGetCurrent();
 
@@ -687,7 +678,7 @@
                 NSString *text = entry[@"text"] ?: @"";
                 NSString *versionStr = @"";
 
-                if (i > 0) {
+                {
                     NSArray *versions = entry[@"versions"] ?: @[];
                     NSMutableArray *displayVersions = [[NSMutableArray alloc] init];
                     for (NSString *v in versions) {
@@ -866,7 +857,7 @@
 
     self.sections = sects;
 
-    NSLog(@"[DEBUG] PokemonDetailVC buildSections: %lu sections, tableWidth=%.0f",
+    NSLog(@"[DEBUG] PokemonDetailVC buildSections: %lu sections, contentWidth=%.0f",
           (unsigned long)sects.count, tableWidth);
     NSLog(@"[PERF] PokemonDetailVC buildSections TOTAL: %.1fms (pokemon=%@)",
           (CFAbsoluteTimeGetCurrent() - totalStart) * 1000,
@@ -1252,7 +1243,7 @@
     for (UIView *sub in cell.contentView.subviews) [sub removeFromSuperview];
 
     CGFloat pad = DETAIL_CELL_PADDING;
-    CGFloat w = tableView.bounds.size.width - pad * 2;
+    CGFloat w = cell.contentView.bounds.size.width - pad * 2;
     CGFloat cy = 8;
     NSString *versionStr = row[@"versionStr"];
     NSString *text = row[@"text"];

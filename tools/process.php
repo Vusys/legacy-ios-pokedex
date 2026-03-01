@@ -219,6 +219,8 @@ function title_case_name(string $name): string {
 function clean_flavor_text(string $text): string {
     // PokeAPI flavor text has form-feed (\f), newlines, and weird whitespace
     $text = str_replace(["\f", "\n", "\r"], ' ', $text);
+    // Strip soft hyphens (U+00AD) that cause broken words like "be­ comes"
+    $text = str_replace("\xC2\xAD", '', $text);
     $text = preg_replace('/\s+/', ' ', $text);
     return trim($text);
 }
@@ -1906,6 +1908,23 @@ function main(): void {
     write_plist(LOCATIONS_DIR . '/index.plist', $locationIndex);
     echo "  Wrote locations/index.plist (" . count($locationIndex) . " entries)\n";
     echo "  Wrote {$locationPlistCount} location detail plists\n\n";
+
+    // Write precomputed stats for About page
+    $totalImages = $spriteTotal + $itemSpritesCopied + $berrySpritesCopied;
+    $stats = [
+        'pokemon_count' => $processed,
+        'move_count' => $processedMoves,
+        'ability_count' => $processedAbilities,
+        'item_count' => $processedItemsCount,
+        'nature_count' => count($naturesData),
+        'berry_count' => $processedBerriesCount,
+        'type_count' => count($typesData),
+        'egg_group_count' => count($eggGroupsIndex),
+        'location_count' => count($locationIndex),
+        'image_count' => $totalImages,
+    ];
+    write_plist(DATA_DIR . '/stats.plist', $stats);
+    echo "  Wrote data/stats.plist\n";
 
     echo "=== Processing Complete ===\n";
     echo "  Index:      " . DATA_DIR . "/index.plist ({$processed} Pokemon)\n";
