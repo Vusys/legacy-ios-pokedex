@@ -19,9 +19,10 @@
 @property (nonatomic, strong) UIView *headerView;
 @property (nonatomic, strong) UIImageView *artworkView;
 @property (nonatomic, strong) UIScrollView *thumbnailScroll;
-@property (nonatomic, strong) NSArray *thumbnailEntries; // array of {image, label}
+@property (nonatomic, strong) NSArray *thumbnailEntries; // array of {image, label, isSprite}
 @property (nonatomic, strong) NSMutableArray *thumbnailImageViews;
 @property (nonatomic, assign) NSInteger selectedThumbnailIndex;
+@property (nonatomic, strong) UIView *scrollFadeView;
 @end
 
 @implementation PokemonDetailVC
@@ -61,6 +62,13 @@
 
 - (NSString *)emptyStateText {
     return @"Select a Pok\u00e9mon";
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    if (self.thumbnailScroll) {
+        [self.thumbnailScroll flashScrollIndicators];
+    }
 }
 
 #pragma mark - Header View
@@ -184,7 +192,7 @@
         cy += classBadgeH + 4;
     }
 
-    // Artwork (centered)
+    // Artwork (centered, tappable)
     CGFloat artworkX = (width - artworkDisplaySize) / 2.0;
     self.artworkView = [[UIImageView alloc] initWithFrame:
         CGRectMake(artworkX, cy, artworkDisplaySize, artworkDisplaySize)];
@@ -194,16 +202,22 @@
     self.artworkView.layer.cornerRadius = 8;
     self.artworkView.layer.borderWidth = 0.5;
     self.artworkView.layer.borderColor = [[UIColor colorWithWhite:0.88 alpha:1] CGColor];
+    self.artworkView.clipsToBounds = YES;
+    self.artworkView.userInteractionEnabled = YES;
+    UITapGestureRecognizer *artTap = [[UITapGestureRecognizer alloc]
+        initWithTarget:self action:@selector(artworkTapped:)];
+    [self.artworkView addGestureRecognizer:artTap];
     [header addSubview:self.artworkView];
     cy += artworkDisplaySize + 8;
 
     // Thumbnail scroll strip
     CGFloat thumbSize = 64;
     CGFloat thumbGap = 6;
+    CGFloat stripTotalH = thumbnailStripH + labelH + 4;
 
     self.thumbnailScroll = [[UIScrollView alloc] initWithFrame:
-        CGRectMake(0, cy, width, thumbnailStripH + labelH + 4)];
-    self.thumbnailScroll.showsHorizontalScrollIndicator = NO;
+        CGRectMake(0, cy, width, stripTotalH)];
+    self.thumbnailScroll.showsHorizontalScrollIndicator = YES;
     self.thumbnailScroll.showsVerticalScrollIndicator = NO;
 
     self.thumbnailImageViews = [[NSMutableArray alloc] init];
@@ -213,12 +227,27 @@
         NSDictionary *entry = self.thumbnailEntries[i];
         UIImage *img = entry[@"image"];
         NSString *label = entry[@"label"];
+        BOOL isSprite = [entry[@"isSprite"] boolValue];
+
+        // For pixel sprites, pre-scale to integer-ratio size for crisp rendering
+        UIImage *displayImg = img;
+        if (isSprite) {
+            displayImg = [self pixelScaledImage:img toFitSize:thumbSize];
+        }
 
         // Thumbnail image view
         UIImageView *iv = [[UIImageView alloc] initWithFrame:
             CGRectMake(tx, 4, thumbSize, thumbSize)];
-        iv.contentMode = UIViewContentModeScaleAspectFit;
-        iv.image = img;
+        iv.clipsToBounds = YES;
+
+        if (isSprite) {
+            iv.contentMode = UIViewContentModeCenter;
+            iv.image = displayImg;
+        } else {
+            iv.contentMode = UIViewContentModeScaleAspectFit;
+            iv.image = img;
+        }
+
         iv.backgroundColor = [UIColor colorWithWhite:0.95 alpha:1];
         iv.layer.cornerRadius = 4;
         iv.layer.borderWidth = (i == 0) ? 2.0 : 0.5;
@@ -248,8 +277,27 @@
         tx += thumbSize + thumbGap;
     }
 
-    self.thumbnailScroll.contentSize = CGSizeMake(tx, thumbnailStripH + labelH + 4);
+    self.thumbnailScroll.contentSize = CGSizeMake(tx, stripTotalH);
     [header addSubview:self.thumbnailScroll];
+
+    // Right-edge gradient fade to indicate scrollable content
+    if (tx > width) {
+        CGFloat fadeW = 36;
+        self.scrollFadeView = [[UIView alloc] initWithFrame:
+            CGRectMake(width - fadeW, cy, fadeW, stripTotalH)];
+        self.scrollFadeView.userInteractionEnabled = NO;
+
+        CAGradientLayer *fade = [CAGradientLayer layer];
+        fade.frame = self.scrollFadeView.bounds;
+        fade.colors = @[
+            (id)[[UIColor colorWithWhite:1.0 alpha:0.0] CGColor],
+            (id)[[UIColor colorWithWhite:1.0 alpha:0.95] CGColor]
+        ];
+        fade.startPoint = CGPointMake(0, 0.5);
+        fade.endPoint = CGPointMake(1, 0.5);
+        [self.scrollFadeView.layer addSublayer:fade];
+        [header addSubview:self.scrollFadeView];
+    }
 
     self.selectedThumbnailIndex = 0;
 
@@ -265,44 +313,44 @@
     // Artwork (full-size) comes first
     UIImage *artwork = [dm artworkForPokemonID:pid];
     if (artwork) {
-        [entries addObject:@{@"image": artwork, @"label": @"Artwork"}];
+        [entries addObject:@{@"image": artwork, @"label": @"Artwork", @"isSprite": @NO}];
     }
 
     // Front default
     UIImage *front = [dm spriteForPokemonID:pid];
     if (front) {
-        [entries addObject:@{@"image": front, @"label": @"Front"}];
+        [entries addObject:@{@"image": front, @"label": @"Front", @"isSprite": @YES}];
     }
 
     // Back default
     UIImage *back = [dm backSpriteForPokemonID:pid];
     if (back) {
-        [entries addObject:@{@"image": back, @"label": @"Back"}];
+        [entries addObject:@{@"image": back, @"label": @"Back", @"isSprite": @YES}];
     }
 
     // Shiny front
     UIImage *shinyFront = [dm shinySpriteForPokemonID:pid];
     if (shinyFront) {
-        [entries addObject:@{@"image": shinyFront, @"label": @"Shiny"}];
+        [entries addObject:@{@"image": shinyFront, @"label": @"Shiny", @"isSprite": @YES}];
     }
 
     // Shiny back
     UIImage *shinyBack = [dm backShinySpriteForPokemonID:pid];
     if (shinyBack) {
-        [entries addObject:@{@"image": shinyBack, @"label": @"Shiny Back"}];
+        [entries addObject:@{@"image": shinyBack, @"label": @"Shiny Back", @"isSprite": @YES}];
     }
 
     // Shiny artwork
     UIImage *shinyArt = [dm shinyArtworkForPokemonID:pid];
     if (shinyArt) {
-        [entries addObject:@{@"image": shinyArt, @"label": @"Shiny Art"}];
+        [entries addObject:@{@"image": shinyArt, @"label": @"Shiny Art", @"isSprite": @NO}];
     }
 
     // Female front
     if (self.pokemon.hasFemaleSprite) {
         UIImage *female = [dm femaleSpriteForPokemonID:pid];
         if (female) {
-            [entries addObject:@{@"image": female, @"label": @"\u2640 Front"}];
+            [entries addObject:@{@"image": female, @"label": @"\u2640 Front", @"isSprite": @YES}];
         }
     }
 
@@ -310,7 +358,7 @@
     if (self.pokemon.hasBackFemaleSprite) {
         UIImage *backFemale = [dm backFemaleSpriteForPokemonID:pid];
         if (backFemale) {
-            [entries addObject:@{@"image": backFemale, @"label": @"\u2640 Back"}];
+            [entries addObject:@{@"image": backFemale, @"label": @"\u2640 Back", @"isSprite": @YES}];
         }
     }
 
@@ -318,7 +366,7 @@
     if (self.pokemon.hasShinyFemaleSprite) {
         UIImage *shinyFemale = [dm shinyFemaleSpriteForPokemonID:pid];
         if (shinyFemale) {
-            [entries addObject:@{@"image": shinyFemale, @"label": @"\u2640 Shiny"}];
+            [entries addObject:@{@"image": shinyFemale, @"label": @"\u2640 Shiny", @"isSprite": @YES}];
         }
     }
 
@@ -326,7 +374,7 @@
     if (self.pokemon.hasBackShinyFemaleSprite) {
         UIImage *backShinyFemale = [dm backShinyFemaleSpriteForPokemonID:pid];
         if (backShinyFemale) {
-            [entries addObject:@{@"image": backShinyFemale, @"label": @"\u2640 Sh.Back"}];
+            [entries addObject:@{@"image": backShinyFemale, @"label": @"\u2640 Sh.Back", @"isSprite": @YES}];
         }
     }
 
@@ -348,9 +396,119 @@
 
     self.selectedThumbnailIndex = index;
 
-    // Update large artwork view
+    // Update large artwork view with pixel-perfect scaling for sprites
     NSDictionary *entry = self.thumbnailEntries[(NSUInteger)index];
-    self.artworkView.image = entry[@"image"];
+    UIImage *image = entry[@"image"];
+    BOOL isSprite = [entry[@"isSprite"] boolValue];
+
+    if (isSprite) {
+        CGFloat containerSize = self.artworkView.bounds.size.width;
+        UIImage *scaled = [self pixelScaledImage:image toFitSize:containerSize];
+        self.artworkView.image = scaled;
+        self.artworkView.contentMode = UIViewContentModeCenter;
+        self.artworkView.layer.magnificationFilter = kCAFilterNearest;
+    } else {
+        self.artworkView.image = image;
+        self.artworkView.contentMode = UIViewContentModeScaleAspectFit;
+        self.artworkView.layer.magnificationFilter = kCAFilterLinear;
+    }
+}
+
+#pragma mark - Fullscreen Image
+
+- (void)artworkTapped:(UITapGestureRecognizer *)gesture {
+    UIImage *image = self.artworkView.image;
+    if (!image) return;
+
+    NSDictionary *entry = self.thumbnailEntries[(NSUInteger)self.selectedThumbnailIndex];
+    BOOL isSprite = [entry[@"isSprite"] boolValue];
+    // Use original full-res image for fullscreen
+    UIImage *fullImage = entry[@"image"];
+
+    UIWindow *window = self.view.window;
+    CGRect windowBounds = window.bounds;
+
+    UIView *overlay = [[UIView alloc] initWithFrame:windowBounds];
+    overlay.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.92];
+    overlay.alpha = 0;
+
+    UIImageView *imageView = [[UIImageView alloc] initWithFrame:windowBounds];
+    imageView.backgroundColor = [UIColor clearColor];
+
+    if (isSprite) {
+        // Pixel-perfect: scale to largest integer multiple that fits
+        CGFloat fitDim = MIN(windowBounds.size.width, windowBounds.size.height);
+        UIImage *scaled = [self pixelScaledImage:fullImage toFitSize:fitDim];
+        imageView.image = scaled;
+        imageView.contentMode = UIViewContentModeCenter;
+        imageView.layer.magnificationFilter = kCAFilterNearest;
+    } else {
+        imageView.image = fullImage;
+        imageView.contentMode = UIViewContentModeScaleAspectFit;
+    }
+
+    [overlay addSubview:imageView];
+
+    // Close button
+    UILabel *closeHint = [[UILabel alloc] initWithFrame:
+        CGRectMake(0, windowBounds.size.height - 44, windowBounds.size.width, 32)];
+    closeHint.text = @"Tap to close";
+    closeHint.font = [UIFont systemFontOfSize:14];
+    closeHint.textColor = [UIColor colorWithWhite:1.0 alpha:0.6];
+    closeHint.textAlignment = NSTextAlignmentCenter;
+    closeHint.backgroundColor = [UIColor clearColor];
+    [overlay addSubview:closeHint];
+
+    UITapGestureRecognizer *dismissTap = [[UITapGestureRecognizer alloc]
+        initWithTarget:self action:@selector(dismissFullScreenImage:)];
+    [overlay addGestureRecognizer:dismissTap];
+
+    [window addSubview:overlay];
+
+    [UIView animateWithDuration:0.25 animations:^{
+        overlay.alpha = 1;
+    }];
+}
+
+- (void)dismissFullScreenImage:(UITapGestureRecognizer *)gesture {
+    UIView *overlay = gesture.view;
+    [UIView animateWithDuration:0.2 animations:^{
+        overlay.alpha = 0;
+    } completion:^(BOOL finished) {
+        [overlay removeFromSuperview];
+    }];
+}
+
+#pragma mark - Pixel Scaling
+
+- (UIImage *)pixelScaledImage:(UIImage *)image toFitSize:(CGFloat)containerSize {
+    CGFloat nativeSize = MAX(image.size.width, image.size.height);
+    if (nativeSize <= 0) return image;
+
+    CGFloat targetSize;
+    if (nativeSize <= containerSize) {
+        // Magnification: largest integer multiple that fits
+        NSInteger multiple = (NSInteger)floorf(containerSize / nativeSize);
+        if (multiple < 1) multiple = 1;
+        targetSize = nativeSize * multiple;
+    } else {
+        // Minification: smallest integer divisor that makes it fit
+        NSInteger divisor = (NSInteger)ceilf(nativeSize / containerSize);
+        if (divisor < 1) divisor = 1;
+        targetSize = nativeSize / divisor;
+    }
+
+    CGFloat scale = targetSize / nativeSize;
+    CGFloat w = image.size.width * scale;
+    CGFloat h = image.size.height * scale;
+
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(w, h), NO, 1.0);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    CGContextSetInterpolationQuality(ctx, kCGInterpolationNone);
+    [image drawInRect:CGRectMake(0, 0, w, h)];
+    UIImage *scaled = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return scaled;
 }
 
 #pragma mark - Build Sections
