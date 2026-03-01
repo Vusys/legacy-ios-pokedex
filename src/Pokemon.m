@@ -32,6 +32,11 @@
     p.moves = dict[@"moves"] ?: @[];
     p.heldItems = dict[@"held_items"] ?: @[];
     p.hasFemaleSprite = [dict[@"has_female_sprite"] boolValue];
+    p.hasBackShinySprite = [dict[@"has_back_shiny_sprite"] boolValue];
+    p.hasShinyFemaleSprite = [dict[@"has_shiny_female_sprite"] boolValue];
+    p.hasBackFemaleSprite = [dict[@"has_back_female_sprite"] boolValue];
+    p.hasBackShinyFemaleSprite = [dict[@"has_back_shiny_female_sprite"] boolValue];
+    p.hasShinyArtwork = [dict[@"has_shiny_artwork"] boolValue];
     p.growthRate = dict[@"growth_rate"] ?: @"";
     p.isLegendary = [dict[@"is_legendary"] boolValue];
     p.isMythical = [dict[@"is_mythical"] boolValue];

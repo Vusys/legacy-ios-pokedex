@@ -16,14 +16,12 @@
 
 @interface PokemonDetailVC ()
 @property (nonatomic, strong) Pokemon *pokemon;
-@property (nonatomic, assign) BOOL showShiny;
-@property (nonatomic, assign) BOOL showFemale;
 @property (nonatomic, strong) UIView *headerView;
 @property (nonatomic, strong) UIImageView *artworkView;
-@property (nonatomic, strong) UIImageView *frontSpriteView;
-@property (nonatomic, strong) UIImageView *backSpriteView;
-@property (nonatomic, strong) UIButton *shinyButton;
-@property (nonatomic, strong) UIButton *genderButton;
+@property (nonatomic, strong) UIScrollView *thumbnailScroll;
+@property (nonatomic, strong) NSArray *thumbnailEntries; // array of {image, label}
+@property (nonatomic, strong) NSMutableArray *thumbnailImageViews;
+@property (nonatomic, assign) NSInteger selectedThumbnailIndex;
 @end
 
 @implementation PokemonDetailVC
@@ -79,14 +77,15 @@
     NSLog(@"[DEBUG] PokemonDetailVC setupHeaderView: tableWidth=%.0f innerWidth=%.0f (pokemon=%@)",
           width, innerWidth, self.pokemon.name);
 
+    // Build thumbnail entries: array of dicts with image + label
+    [self buildThumbnailEntries];
+
     // Artwork
     UIImage *artworkImage = [dm artworkForPokemonID:pid];
     BOOL hasArtwork = (artworkImage != nil);
     CGFloat artworkDisplaySize = hasArtwork ? MIN(floorf(innerWidth * 0.65), 280) : 96;
 
-    // Front/back sprites
-    UIImage *frontImage = [self currentFrontSprite];
-    UIImage *backImage = [dm backSpriteForPokemonID:pid];
+    UIImage *frontImage = [dm spriteForPokemonID:pid];
     if (!hasArtwork) artworkImage = frontImage;
 
     // Layout height calculation
@@ -94,8 +93,10 @@
     BOOL hasClassification = self.pokemon.isLegendary || self.pokemon.isMythical || self.pokemon.isBaby;
     CGFloat classificationHeight = hasClassification ? 22 : 0;
     CGFloat artworkRowHeight = artworkDisplaySize + 8;
-    CGFloat spriteStripH = 88;
-    CGFloat headerHeight = pad + infoHeight + classificationHeight + artworkRowHeight + spriteStripH + pad;
+    CGFloat thumbnailStripH = 78;
+    CGFloat labelH = 12;
+    CGFloat headerHeight = pad + infoHeight + classificationHeight + artworkRowHeight
+                           + thumbnailStripH + labelH + 4 + pad;
 
     UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, width, headerHeight)];
     CGFloat cy = pad;
@@ -170,13 +171,13 @@
             classBadge.backgroundColor = color;
             classBadge.layer.cornerRadius = 3;
 
-            UILabel *badgeLabel = [[UILabel alloc] initWithFrame:classBadge.bounds];
-            badgeLabel.text = text;
-            badgeLabel.font = classBadgeFont;
-            badgeLabel.textColor = [UIColor whiteColor];
-            badgeLabel.textAlignment = NSTextAlignmentCenter;
-            badgeLabel.backgroundColor = [UIColor clearColor];
-            [classBadge addSubview:badgeLabel];
+            UILabel *badgeLbl = [[UILabel alloc] initWithFrame:classBadge.bounds];
+            badgeLbl.text = text;
+            badgeLbl.font = classBadgeFont;
+            badgeLbl.textColor = [UIColor whiteColor];
+            badgeLbl.textAlignment = NSTextAlignmentCenter;
+            badgeLbl.backgroundColor = [UIColor clearColor];
+            [classBadge addSubview:badgeLbl];
             [header addSubview:classBadge];
             classBadgeX += badgeW + 4;
         }
@@ -196,144 +197,160 @@
     [header addSubview:self.artworkView];
     cy += artworkDisplaySize + 8;
 
-    // Sprite strip
-    CGFloat stripY = cy;
-    CGFloat smallSprite = 80;
-    CGFloat stripX = pad;
-    CGFloat spriteOffY = stripY + (spriteStripH - smallSprite) / 2.0;
+    // Thumbnail scroll strip
+    CGFloat thumbSize = 64;
+    CGFloat thumbGap = 6;
 
-    self.frontSpriteView = [[UIImageView alloc] initWithFrame:
-        CGRectMake(stripX, spriteOffY, smallSprite, smallSprite)];
-    self.frontSpriteView.contentMode = UIViewContentModeScaleAspectFit;
-    self.frontSpriteView.image = frontImage;
-    self.frontSpriteView.backgroundColor = [UIColor colorWithWhite:0.95 alpha:1];
-    self.frontSpriteView.layer.cornerRadius = 4;
-    self.frontSpriteView.layer.borderWidth = 0.5;
-    self.frontSpriteView.layer.borderColor = [[UIColor colorWithWhite:0.85 alpha:1] CGColor];
-    [header addSubview:self.frontSpriteView];
-    stripX += smallSprite + 6;
+    self.thumbnailScroll = [[UIScrollView alloc] initWithFrame:
+        CGRectMake(0, cy, width, thumbnailStripH + labelH + 4)];
+    self.thumbnailScroll.showsHorizontalScrollIndicator = NO;
+    self.thumbnailScroll.showsVerticalScrollIndicator = NO;
 
-    if (backImage) {
-        self.backSpriteView = [[UIImageView alloc] initWithFrame:
-            CGRectMake(stripX, spriteOffY, smallSprite, smallSprite)];
-        self.backSpriteView.contentMode = UIViewContentModeScaleAspectFit;
-        self.backSpriteView.image = backImage;
-        self.backSpriteView.backgroundColor = [UIColor colorWithWhite:0.95 alpha:1];
-        self.backSpriteView.layer.cornerRadius = 4;
-        self.backSpriteView.layer.borderWidth = 0.5;
-        self.backSpriteView.layer.borderColor = [[UIColor colorWithWhite:0.85 alpha:1] CGColor];
-        [header addSubview:self.backSpriteView];
-        stripX += smallSprite + 6;
+    self.thumbnailImageViews = [[NSMutableArray alloc] init];
+    CGFloat tx = pad;
+
+    for (NSUInteger i = 0; i < self.thumbnailEntries.count; i++) {
+        NSDictionary *entry = self.thumbnailEntries[i];
+        UIImage *img = entry[@"image"];
+        NSString *label = entry[@"label"];
+
+        // Thumbnail image view
+        UIImageView *iv = [[UIImageView alloc] initWithFrame:
+            CGRectMake(tx, 4, thumbSize, thumbSize)];
+        iv.contentMode = UIViewContentModeScaleAspectFit;
+        iv.image = img;
+        iv.backgroundColor = [UIColor colorWithWhite:0.95 alpha:1];
+        iv.layer.cornerRadius = 4;
+        iv.layer.borderWidth = (i == 0) ? 2.0 : 0.5;
+        iv.layer.borderColor = (i == 0) ?
+            [[UIColor colorWithRed:0.2 green:0.5 blue:0.9 alpha:1] CGColor] :
+            [[UIColor colorWithWhite:0.85 alpha:1] CGColor];
+        iv.userInteractionEnabled = YES;
+        iv.tag = (NSInteger)i;
+
+        UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc]
+            initWithTarget:self action:@selector(thumbnailTapped:)];
+        [iv addGestureRecognizer:tap];
+
+        [self.thumbnailScroll addSubview:iv];
+        [self.thumbnailImageViews addObject:iv];
+
+        // Label below thumbnail
+        UILabel *thumbLabel = [[UILabel alloc] initWithFrame:
+            CGRectMake(tx, 4 + thumbSize + 2, thumbSize, labelH)];
+        thumbLabel.text = label;
+        thumbLabel.font = [UIFont systemFontOfSize:9];
+        thumbLabel.textColor = [UIColor grayColor];
+        thumbLabel.textAlignment = NSTextAlignmentCenter;
+        thumbLabel.backgroundColor = [UIColor clearColor];
+        [self.thumbnailScroll addSubview:thumbLabel];
+
+        tx += thumbSize + thumbGap;
     }
 
-    // Toggle buttons
-    CGFloat btnH = 28;
-    CGFloat btnY = stripY + (spriteStripH - btnH) / 2.0;
-    CGFloat btnRight = width - pad;
+    self.thumbnailScroll.contentSize = CGSizeMake(tx, thumbnailStripH + labelH + 4);
+    [header addSubview:self.thumbnailScroll];
 
-    if (self.pokemon.hasFemaleSprite) {
-        NSString *genderTitle = self.showFemale ? @"\u2640" : @"\u2642";
-        self.genderButton = [UIButton buttonWithType:UIButtonTypeCustom];
-        self.genderButton.frame = CGRectMake(btnRight - 36, btnY, 36, btnH);
-        [self.genderButton setTitle:genderTitle forState:UIControlStateNormal];
-        [self.genderButton setTitleColor:(self.showFemale ?
-            [UIColor colorWithRed:0.95 green:0.3 blue:0.5 alpha:1] :
-            [UIColor colorWithRed:0.2 green:0.4 blue:0.9 alpha:1])
-            forState:UIControlStateNormal];
-        self.genderButton.titleLabel.font = [UIFont boldSystemFontOfSize:16];
-        self.genderButton.backgroundColor = [UIColor colorWithWhite:0.94 alpha:1];
-        self.genderButton.layer.cornerRadius = 4;
-        self.genderButton.layer.borderWidth = 0.5;
-        self.genderButton.layer.borderColor = [[UIColor colorWithWhite:0.80 alpha:1] CGColor];
-        [self.genderButton addTarget:self action:@selector(toggleGender)
-            forControlEvents:UIControlEventTouchUpInside];
-        [header addSubview:self.genderButton];
-        btnRight -= 42;
-    }
-
-    self.shinyButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    self.shinyButton.frame = CGRectMake(btnRight - 56, btnY, 56, btnH);
-    [self.shinyButton setTitle:@"\u2605 Shiny" forState:UIControlStateNormal];
-    [self.shinyButton setTitleColor:(self.showShiny ?
-        [UIColor colorWithRed:0.85 green:0.65 blue:0.0 alpha:1] :
-        [UIColor colorWithWhite:0.45 alpha:1])
-        forState:UIControlStateNormal];
-    self.shinyButton.titleLabel.font = [UIFont boldSystemFontOfSize:11];
-    self.shinyButton.backgroundColor = self.showShiny ?
-        [UIColor colorWithRed:1.0 green:0.97 blue:0.85 alpha:1] :
-        [UIColor colorWithWhite:0.94 alpha:1];
-    self.shinyButton.layer.cornerRadius = 4;
-    self.shinyButton.layer.borderWidth = 0.5;
-    self.shinyButton.layer.borderColor = (self.showShiny ?
-        [[UIColor colorWithRed:0.85 green:0.65 blue:0.0 alpha:0.5] CGColor] :
-        [[UIColor colorWithWhite:0.80 alpha:1] CGColor]);
-    [self.shinyButton addTarget:self action:@selector(toggleShiny)
-        forControlEvents:UIControlEventTouchUpInside];
-    [header addSubview:self.shinyButton];
-
-    NSLog(@"[DEBUG] PokemonDetailVC header: size=%@ artworkSize=%.0f artworkX=%.0f "
-          @"spriteStripY=%.0f btnY=%.0f shinyBtnX=%.0f",
-          NSStringFromCGSize(header.frame.size), artworkDisplaySize, artworkX,
-          stripY, btnY, self.shinyButton.frame.origin.x);
+    self.selectedThumbnailIndex = 0;
 
     self.headerView = header;
     self.tableView.tableHeaderView = header;
 }
 
-- (UIImage *)currentFrontSprite {
+- (void)buildThumbnailEntries {
     DataManager *dm = [DataManager sharedManager];
     NSInteger pid = self.pokemon.pokemonID;
-    if (self.showFemale && self.pokemon.hasFemaleSprite) {
-        return [dm femaleSpriteForPokemonID:pid];
-    } else if (self.showShiny) {
-        return [dm shinySpriteForPokemonID:pid];
+    NSMutableArray *entries = [[NSMutableArray alloc] init];
+
+    // Artwork (full-size) comes first
+    UIImage *artwork = [dm artworkForPokemonID:pid];
+    if (artwork) {
+        [entries addObject:@{@"image": artwork, @"label": @"Artwork"}];
     }
-    return [dm spriteForPokemonID:pid];
-}
 
-- (void)updateSpriteImages {
-    DataManager *dm = [DataManager sharedManager];
-    NSInteger pid = self.pokemon.pokemonID;
-    UIImage *frontImage = [self currentFrontSprite];
-    self.frontSpriteView.image = frontImage;
-
-    UIImage *artworkImage = [dm artworkForPokemonID:pid];
-    if (!artworkImage) artworkImage = frontImage;
-    self.artworkView.image = artworkImage;
-
-    // Update shiny button appearance
-    [self.shinyButton setTitleColor:(self.showShiny ?
-        [UIColor colorWithRed:0.85 green:0.65 blue:0.0 alpha:1] :
-        [UIColor colorWithWhite:0.45 alpha:1])
-        forState:UIControlStateNormal];
-    self.shinyButton.backgroundColor = self.showShiny ?
-        [UIColor colorWithRed:1.0 green:0.97 blue:0.85 alpha:1] :
-        [UIColor colorWithWhite:0.94 alpha:1];
-    self.shinyButton.layer.borderColor = (self.showShiny ?
-        [[UIColor colorWithRed:0.85 green:0.65 blue:0.0 alpha:0.5] CGColor] :
-        [[UIColor colorWithWhite:0.80 alpha:1] CGColor]);
-
-    // Update gender button appearance
-    if (self.genderButton) {
-        NSString *genderTitle = self.showFemale ? @"\u2640" : @"\u2642";
-        [self.genderButton setTitle:genderTitle forState:UIControlStateNormal];
-        [self.genderButton setTitleColor:(self.showFemale ?
-            [UIColor colorWithRed:0.95 green:0.3 blue:0.5 alpha:1] :
-            [UIColor colorWithRed:0.2 green:0.4 blue:0.9 alpha:1])
-            forState:UIControlStateNormal];
+    // Front default
+    UIImage *front = [dm spriteForPokemonID:pid];
+    if (front) {
+        [entries addObject:@{@"image": front, @"label": @"Front"}];
     }
+
+    // Back default
+    UIImage *back = [dm backSpriteForPokemonID:pid];
+    if (back) {
+        [entries addObject:@{@"image": back, @"label": @"Back"}];
+    }
+
+    // Shiny front
+    UIImage *shinyFront = [dm shinySpriteForPokemonID:pid];
+    if (shinyFront) {
+        [entries addObject:@{@"image": shinyFront, @"label": @"Shiny"}];
+    }
+
+    // Shiny back
+    UIImage *shinyBack = [dm backShinySpriteForPokemonID:pid];
+    if (shinyBack) {
+        [entries addObject:@{@"image": shinyBack, @"label": @"Shiny Back"}];
+    }
+
+    // Shiny artwork
+    UIImage *shinyArt = [dm shinyArtworkForPokemonID:pid];
+    if (shinyArt) {
+        [entries addObject:@{@"image": shinyArt, @"label": @"Shiny Art"}];
+    }
+
+    // Female front
+    if (self.pokemon.hasFemaleSprite) {
+        UIImage *female = [dm femaleSpriteForPokemonID:pid];
+        if (female) {
+            [entries addObject:@{@"image": female, @"label": @"\u2640 Front"}];
+        }
+    }
+
+    // Female back
+    if (self.pokemon.hasBackFemaleSprite) {
+        UIImage *backFemale = [dm backFemaleSpriteForPokemonID:pid];
+        if (backFemale) {
+            [entries addObject:@{@"image": backFemale, @"label": @"\u2640 Back"}];
+        }
+    }
+
+    // Shiny female
+    if (self.pokemon.hasShinyFemaleSprite) {
+        UIImage *shinyFemale = [dm shinyFemaleSpriteForPokemonID:pid];
+        if (shinyFemale) {
+            [entries addObject:@{@"image": shinyFemale, @"label": @"\u2640 Shiny"}];
+        }
+    }
+
+    // Shiny female back
+    if (self.pokemon.hasBackShinyFemaleSprite) {
+        UIImage *backShinyFemale = [dm backShinyFemaleSpriteForPokemonID:pid];
+        if (backShinyFemale) {
+            [entries addObject:@{@"image": backShinyFemale, @"label": @"\u2640 Sh.Back"}];
+        }
+    }
+
+    self.thumbnailEntries = entries;
 }
 
-- (void)toggleShiny {
-    self.showShiny = !self.showShiny;
-    self.showFemale = NO;
-    [self updateSpriteImages];
-}
+- (void)thumbnailTapped:(UITapGestureRecognizer *)gesture {
+    NSInteger index = gesture.view.tag;
+    if (index < 0 || (NSUInteger)index >= self.thumbnailEntries.count) return;
 
-- (void)toggleGender {
-    self.showFemale = !self.showFemale;
-    self.showShiny = NO;
-    [self updateSpriteImages];
+    // Update selection highlight
+    UIImageView *oldThumb = self.thumbnailImageViews[(NSUInteger)self.selectedThumbnailIndex];
+    oldThumb.layer.borderWidth = 0.5;
+    oldThumb.layer.borderColor = [[UIColor colorWithWhite:0.85 alpha:1] CGColor];
+
+    UIImageView *newThumb = self.thumbnailImageViews[(NSUInteger)index];
+    newThumb.layer.borderWidth = 2.0;
+    newThumb.layer.borderColor = [[UIColor colorWithRed:0.2 green:0.5 blue:0.9 alpha:1] CGColor];
+
+    self.selectedThumbnailIndex = index;
+
+    // Update large artwork view
+    NSDictionary *entry = self.thumbnailEntries[(NSUInteger)index];
+    self.artworkView.image = entry[@"image"];
 }
 
 #pragma mark - Build Sections

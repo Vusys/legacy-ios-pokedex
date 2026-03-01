@@ -26,6 +26,11 @@
 @property (nonatomic, strong) NSArray *moves;
 @property (nonatomic, strong) NSArray *heldItems;
 @property (nonatomic, assign) BOOL hasFemaleSprite;
+@property (nonatomic, assign) BOOL hasBackShinySprite;
+@property (nonatomic, assign) BOOL hasShinyFemaleSprite;
+@property (nonatomic, assign) BOOL hasBackFemaleSprite;
+@property (nonatomic, assign) BOOL hasBackShinyFemaleSprite;
+@property (nonatomic, assign) BOOL hasShinyArtwork;
 @property (nonatomic, strong) NSString *growthRate;
 @property (nonatomic, assign) BOOL isLegendary;
 @property (nonatomic, assign) BOOL isMythical;

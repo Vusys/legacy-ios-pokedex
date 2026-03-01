@@ -151,7 +151,10 @@ function main(): void {
 
     // Ensure cache directories exist
     foreach (['pokemon', 'species', 'types', 'moves', 'move-damage-class', 'evolution-chains',
-              'sprites', 'sprites-artwork', 'sprites-shiny', 'sprites-back', 'sprites-female',
+              'sprites', 'sprites-artwork', 'sprites-artwork-shiny',
+              'sprites-shiny', 'sprites-back', 'sprites-back-shiny',
+              'sprites-female', 'sprites-shiny-female',
+              'sprites-back-female', 'sprites-back-shiny-female',
               'abilities', 'items', 'sprites-items', 'machines',
               'natures', 'egg-groups', 'berries', 'sprites-berries',
               'encounters', 'location-areas', 'locations'] as $dir) {
@@ -321,6 +324,21 @@ function main(): void {
 
     $femaleStats = download_sprite_variant('sprites-female', 'Female Sprites', $totalSpecies,
         fn($data) => $data['sprites']['front_female'] ?? null);
+
+    $backShinyStats = download_sprite_variant('sprites-back-shiny', 'Back Shiny Sprites', $totalSpecies,
+        fn($data) => $data['sprites']['back_shiny'] ?? null);
+
+    $shinyFemaleStats = download_sprite_variant('sprites-shiny-female', 'Shiny Female Sprites', $totalSpecies,
+        fn($data) => $data['sprites']['front_shiny_female'] ?? null);
+
+    $backFemaleStats = download_sprite_variant('sprites-back-female', 'Back Female Sprites', $totalSpecies,
+        fn($data) => $data['sprites']['back_female'] ?? null);
+
+    $backShinyFemaleStats = download_sprite_variant('sprites-back-shiny-female', 'Back Shiny Female Sprites', $totalSpecies,
+        fn($data) => $data['sprites']['back_shiny_female'] ?? null);
+
+    $artworkShinyStats = download_sprite_variant('sprites-artwork-shiny', 'Shiny Official Artwork', $totalSpecies,
+        fn($data) => $data['sprites']['other']['official-artwork']['front_shiny'] ?? null);
 
     // Step 9: Fetch all Ability data
     echo "Fetching ability list to discover IDs...\n";
@@ -734,6 +752,16 @@ function main(): void {
     echo "  Back:           {$backTotal} downloaded, {$backStats['missing']} missing\n";
     $femaleTotal = $femaleStats['fetched'] + $femaleStats['cached'];
     echo "  Female:         {$femaleTotal} downloaded, {$femaleStats['missing']} missing\n";
+    $backShinyTotal = $backShinyStats['fetched'] + $backShinyStats['cached'];
+    echo "  Back Shiny:     {$backShinyTotal} downloaded, {$backShinyStats['missing']} missing\n";
+    $shinyFemaleTotal = $shinyFemaleStats['fetched'] + $shinyFemaleStats['cached'];
+    echo "  Shiny Female:   {$shinyFemaleTotal} downloaded, {$shinyFemaleStats['missing']} missing\n";
+    $backFemaleTotal = $backFemaleStats['fetched'] + $backFemaleStats['cached'];
+    echo "  Back Female:    {$backFemaleTotal} downloaded, {$backFemaleStats['missing']} missing\n";
+    $backShinyFemaleTotal = $backShinyFemaleStats['fetched'] + $backShinyFemaleStats['cached'];
+    echo "  Back Shiny F:   {$backShinyFemaleTotal} downloaded, {$backShinyFemaleStats['missing']} missing\n";
+    $artworkShinyTotal = $artworkShinyStats['fetched'] + $artworkShinyStats['cached'];
+    echo "  Artwork Shiny:  {$artworkShinyTotal} downloaded, {$artworkShinyStats['missing']} missing\n";
     echo "  Abilities: {$totalAbilities} entries\n";
     echo "  Items:     {$totalItems} entries\n";
     $itemSpritesTotal = $itemSpritesFetched + $itemSpritesCached;

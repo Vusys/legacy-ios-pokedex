@@ -524,6 +524,26 @@ NSString *const FavouritesChangedNotification = @"FavouritesChangedNotification"
     return [self spriteForPokemonID:pokemonID directory:@"sprites/female"];
 }
 
+- (UIImage *)backShinySpriteForPokemonID:(NSInteger)pokemonID {
+    return [self spriteForPokemonID:pokemonID directory:@"sprites/back-shiny"];
+}
+
+- (UIImage *)shinyFemaleSpriteForPokemonID:(NSInteger)pokemonID {
+    return [self spriteForPokemonID:pokemonID directory:@"sprites/shiny-female"];
+}
+
+- (UIImage *)backFemaleSpriteForPokemonID:(NSInteger)pokemonID {
+    return [self spriteForPokemonID:pokemonID directory:@"sprites/back-female"];
+}
+
+- (UIImage *)backShinyFemaleSpriteForPokemonID:(NSInteger)pokemonID {
+    return [self spriteForPokemonID:pokemonID directory:@"sprites/back-shiny-female"];
+}
+
+- (UIImage *)shinyArtworkForPokemonID:(NSInteger)pokemonID {
+    return [self spriteForPokemonID:pokemonID directory:@"sprites/artwork-shiny"];
+}
+
 - (UIImage *)spriteForPokemonID:(NSInteger)pokemonID directory:(NSString *)directory {
     // Use composite cache key: "directory:id"
     NSString *key = [NSString stringWithFormat:@"%@:%ld", directory, (long)pokemonID];

@@ -68,6 +68,11 @@ extern NSString *const FavouritesChangedNotification;
 - (UIImage *)shinySpriteForPokemonID:(NSInteger)pokemonID;
 - (UIImage *)backSpriteForPokemonID:(NSInteger)pokemonID;
 - (UIImage *)femaleSpriteForPokemonID:(NSInteger)pokemonID;
+- (UIImage *)backShinySpriteForPokemonID:(NSInteger)pokemonID;
+- (UIImage *)shinyFemaleSpriteForPokemonID:(NSInteger)pokemonID;
+- (UIImage *)backFemaleSpriteForPokemonID:(NSInteger)pokemonID;
+- (UIImage *)backShinyFemaleSpriteForPokemonID:(NSInteger)pokemonID;
+- (UIImage *)shinyArtworkForPokemonID:(NSInteger)pokemonID;
 - (UIImage *)spriteForItemName:(NSString *)apiName;
 
 // Types data (for type effectiveness calculations)

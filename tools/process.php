@@ -43,6 +43,16 @@ define('BACK_SRC', CACHE_DIR . '/sprites-back');
 define('BACK_DST', SRC_DIR . '/sprites/back');
 define('FEMALE_SRC', CACHE_DIR . '/sprites-female');
 define('FEMALE_DST', SRC_DIR . '/sprites/female');
+define('BACK_SHINY_SRC', CACHE_DIR . '/sprites-back-shiny');
+define('BACK_SHINY_DST', SRC_DIR . '/sprites/back-shiny');
+define('SHINY_FEMALE_SRC', CACHE_DIR . '/sprites-shiny-female');
+define('SHINY_FEMALE_DST', SRC_DIR . '/sprites/shiny-female');
+define('BACK_FEMALE_SRC', CACHE_DIR . '/sprites-back-female');
+define('BACK_FEMALE_DST', SRC_DIR . '/sprites/back-female');
+define('BACK_SHINY_FEMALE_SRC', CACHE_DIR . '/sprites-back-shiny-female');
+define('BACK_SHINY_FEMALE_DST', SRC_DIR . '/sprites/back-shiny-female');
+define('ARTWORK_SHINY_SRC', CACHE_DIR . '/sprites-artwork-shiny');
+define('ARTWORK_SHINY_DST', SRC_DIR . '/sprites/artwork-shiny');
 define('ABILITIES_DIR', DATA_DIR . '/abilities');
 define('ITEMS_DIR', DATA_DIR . '/items');
 define('ITEM_SPRITES_SRC', CACHE_DIR . '/sprites-items');
@@ -680,6 +690,11 @@ function main(): void {
     if (!is_dir(SHINY_DST)) mkdir(SHINY_DST, 0755, true);
     if (!is_dir(BACK_DST)) mkdir(BACK_DST, 0755, true);
     if (!is_dir(FEMALE_DST)) mkdir(FEMALE_DST, 0755, true);
+    if (!is_dir(BACK_SHINY_DST)) mkdir(BACK_SHINY_DST, 0755, true);
+    if (!is_dir(SHINY_FEMALE_DST)) mkdir(SHINY_FEMALE_DST, 0755, true);
+    if (!is_dir(BACK_FEMALE_DST)) mkdir(BACK_FEMALE_DST, 0755, true);
+    if (!is_dir(BACK_SHINY_FEMALE_DST)) mkdir(BACK_SHINY_FEMALE_DST, 0755, true);
+    if (!is_dir(ARTWORK_SHINY_DST)) mkdir(ARTWORK_SHINY_DST, 0755, true);
     if (!is_dir(ABILITIES_DIR)) mkdir(ABILITIES_DIR, 0755, true);
     if (!is_dir(ITEMS_DIR)) mkdir(ITEMS_DIR, 0755, true);
     if (!is_dir(ITEM_SPRITES_DST)) mkdir(ITEM_SPRITES_DST, 0755, true);
@@ -865,8 +880,13 @@ function main(): void {
             $eggGroups[] = title_case_name($eg['name'] ?? '');
         }
 
-        // Check for female sprite availability
+        // Check for sprite variant availability
         $hasFemaleSprite = file_exists(FEMALE_SRC . "/{$id}.png");
+        $hasBackShinySprite = file_exists(BACK_SHINY_SRC . "/{$id}.png");
+        $hasShinyFemaleSprite = file_exists(SHINY_FEMALE_SRC . "/{$id}.png");
+        $hasBackFemaleSprite = file_exists(BACK_FEMALE_SRC . "/{$id}.png");
+        $hasBackShinyFemaleSprite = file_exists(BACK_SHINY_FEMALE_SRC . "/{$id}.png");
+        $hasShinyArtwork = file_exists(ARTWORK_SHINY_SRC . "/{$id}.png");
 
         // Build full detail plist data
         $detail = [
@@ -898,6 +918,11 @@ function main(): void {
             'pokedex_numbers' => get_regional_dex_numbers($speciesData['pokedex_numbers'] ?? []),
             'evolution_chain' => $evolutionChain,
             'has_female_sprite' => $hasFemaleSprite,
+            'has_back_shiny_sprite' => $hasBackShinySprite,
+            'has_shiny_female_sprite' => $hasShinyFemaleSprite,
+            'has_back_female_sprite' => $hasBackFemaleSprite,
+            'has_back_shiny_female_sprite' => $hasBackShinyFemaleSprite,
+            'has_shiny_artwork' => $hasShinyArtwork,
             'moves' => $moves,
             'held_items' => $heldItems,
         ];
@@ -965,7 +990,10 @@ function main(): void {
 
     // Copy sprites (all variants)
     echo "Copying sprites...\n";
-    $spriteCounts = ['front' => 0, 'artwork' => 0, 'shiny' => 0, 'back' => 0, 'female' => 0];
+    $spriteCounts = ['front' => 0, 'artwork' => 0, 'artwork_shiny' => 0,
+                     'shiny' => 0, 'back' => 0, 'back_shiny' => 0,
+                     'female' => 0, 'shiny_female' => 0,
+                     'back_female' => 0, 'back_shiny_female' => 0];
     foreach ($speciesIds as $id) {
         $filename = "{$id}.png";
 
@@ -979,6 +1007,11 @@ function main(): void {
             copy(ARTWORK_SRC . "/{$filename}", ARTWORK_DST . "/{$filename}");
             $spriteCounts['artwork']++;
         }
+        // Shiny artwork
+        if (file_exists(ARTWORK_SHINY_SRC . "/{$filename}")) {
+            copy(ARTWORK_SHINY_SRC . "/{$filename}", ARTWORK_SHINY_DST . "/{$filename}");
+            $spriteCounts['artwork_shiny']++;
+        }
         // Shiny
         if (file_exists(SHINY_SRC . "/{$filename}")) {
             copy(SHINY_SRC . "/{$filename}", SHINY_DST . "/{$filename}");
@@ -989,17 +1022,42 @@ function main(): void {
             copy(BACK_SRC . "/{$filename}", BACK_DST . "/{$filename}");
             $spriteCounts['back']++;
         }
+        // Back Shiny
+        if (file_exists(BACK_SHINY_SRC . "/{$filename}")) {
+            copy(BACK_SHINY_SRC . "/{$filename}", BACK_SHINY_DST . "/{$filename}");
+            $spriteCounts['back_shiny']++;
+        }
         // Female
         if (file_exists(FEMALE_SRC . "/{$filename}")) {
             copy(FEMALE_SRC . "/{$filename}", FEMALE_DST . "/{$filename}");
             $spriteCounts['female']++;
         }
+        // Shiny Female
+        if (file_exists(SHINY_FEMALE_SRC . "/{$filename}")) {
+            copy(SHINY_FEMALE_SRC . "/{$filename}", SHINY_FEMALE_DST . "/{$filename}");
+            $spriteCounts['shiny_female']++;
+        }
+        // Back Female
+        if (file_exists(BACK_FEMALE_SRC . "/{$filename}")) {
+            copy(BACK_FEMALE_SRC . "/{$filename}", BACK_FEMALE_DST . "/{$filename}");
+            $spriteCounts['back_female']++;
+        }
+        // Back Shiny Female
+        if (file_exists(BACK_SHINY_FEMALE_SRC . "/{$filename}")) {
+            copy(BACK_SHINY_FEMALE_SRC . "/{$filename}", BACK_SHINY_FEMALE_DST . "/{$filename}");
+            $spriteCounts['back_shiny_female']++;
+        }
     }
-    echo "  Front:   {$spriteCounts['front']}\n";
-    echo "  Artwork: {$spriteCounts['artwork']}\n";
-    echo "  Shiny:   {$spriteCounts['shiny']}\n";
-    echo "  Back:    {$spriteCounts['back']}\n";
-    echo "  Female:  {$spriteCounts['female']}\n\n";
+    echo "  Front:             {$spriteCounts['front']}\n";
+    echo "  Artwork:           {$spriteCounts['artwork']}\n";
+    echo "  Artwork Shiny:     {$spriteCounts['artwork_shiny']}\n";
+    echo "  Shiny:             {$spriteCounts['shiny']}\n";
+    echo "  Back:              {$spriteCounts['back']}\n";
+    echo "  Back Shiny:        {$spriteCounts['back_shiny']}\n";
+    echo "  Female:            {$spriteCounts['female']}\n";
+    echo "  Shiny Female:      {$spriteCounts['shiny_female']}\n";
+    echo "  Back Female:       {$spriteCounts['back_female']}\n";
+    echo "  Back Shiny Female: {$spriteCounts['back_shiny_female']}\n\n";
 
     // Process moves
     echo "--- Processing Moves ---\n";
@@ -1856,7 +1914,8 @@ function main(): void {
     echo "  Moves:      " . MOVES_DIR . "/ ({$processedMoves} plists)\n";
     echo "  Abilities:  " . ABILITIES_DIR . "/ ({$processedAbilities} plists)\n";
     echo "  Items:      " . ITEMS_DIR . "/ ({$processedItemsCount} plists)\n";
-    echo "  Sprites:    " . SPRITES_DST . "/ (front: {$spriteCounts['front']}, artwork: {$spriteCounts['artwork']}, shiny: {$spriteCounts['shiny']}, back: {$spriteCounts['back']}, female: {$spriteCounts['female']})\n";
+    $spriteTotal = array_sum($spriteCounts);
+    echo "  Sprites:    " . SPRITES_DST . "/ ({$spriteTotal} total across " . count($spriteCounts) . " variants)\n";
     echo "  Item sprites: " . ITEM_SPRITES_DST . "/ ({$itemSpritesCopied} files)\n";
     echo "  Natures:    " . NATURES_DIR . "/ (" . count($naturesData) . " natures)\n";
     echo "  Egg Groups: " . EGG_GROUPS_DIR . "/ (" . count($eggGroupsIndex) . " groups)\n";
