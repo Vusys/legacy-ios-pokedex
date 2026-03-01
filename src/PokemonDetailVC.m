@@ -23,6 +23,7 @@
 @property (nonatomic, strong) NSMutableArray *thumbnailImageViews;
 @property (nonatomic, assign) NSInteger selectedThumbnailIndex;
 @property (nonatomic, strong) UIView *scrollFadeView;
+@property (nonatomic, assign) NSInteger fullscreenIndex;
 @end
 
 @implementation PokemonDetailVC
@@ -420,10 +421,7 @@
     UIImage *image = self.artworkView.image;
     if (!image) return;
 
-    NSDictionary *entry = self.thumbnailEntries[(NSUInteger)self.selectedThumbnailIndex];
-    BOOL isSprite = [entry[@"isSprite"] boolValue];
-    UIImage *fullImage = entry[@"image"];
-    NSString *label = entry[@"label"];
+    self.fullscreenIndex = self.selectedThumbnailIndex;
 
     UIWindow *window = self.view.window;
     CGRect windowBounds = window.bounds;
@@ -433,8 +431,12 @@
 
     UIView *overlay = [[UIView alloc] initWithFrame:windowBounds];
     overlay.backgroundColor = [UIColor whiteColor];
-    overlay.alpha = 0;
     overlay.tag = 8888;
+    overlay.clipsToBounds = YES;
+
+    // Start off-screen (below)
+    overlay.frame = CGRectMake(0, windowBounds.size.height,
+                               windowBounds.size.width, windowBounds.size.height);
 
     // Black status bar background
     UIView *statusBg = [[UIView alloc] initWithFrame:
@@ -446,16 +448,122 @@
     UIToolbar *toolbar = [[UIToolbar alloc] initWithFrame:
         CGRectMake(0, statusBarH, windowBounds.size.width, toolbarH)];
     toolbar.barStyle = UIBarStyleBlack;
+    toolbar.tag = 8889;
+
+    [self updateFullscreenToolbar:toolbar];
+
+    [overlay addSubview:toolbar];
+
+    // Image area below toolbar
+    CGRect imageArea = CGRectMake(0, topInset, windowBounds.size.width,
+                                  windowBounds.size.height - topInset);
+    UIImageView *imageView = [[UIImageView alloc] initWithFrame:imageArea];
+    imageView.backgroundColor = [UIColor whiteColor];
+    imageView.tag = 8890;
+
+    [self configureFullscreenImageView:imageView forIndex:self.fullscreenIndex];
+
+    [overlay addSubview:imageView];
+
+    // Swipe gestures
+    UISwipeGestureRecognizer *swipeLeft = [[UISwipeGestureRecognizer alloc]
+        initWithTarget:self action:@selector(fullscreenSwipeLeft:)];
+    swipeLeft.direction = UISwipeGestureRecognizerDirectionLeft;
+    [overlay addGestureRecognizer:swipeLeft];
+
+    UISwipeGestureRecognizer *swipeRight = [[UISwipeGestureRecognizer alloc]
+        initWithTarget:self action:@selector(fullscreenSwipeRight:)];
+    swipeRight.direction = UISwipeGestureRecognizerDirectionRight;
+    [overlay addGestureRecognizer:swipeRight];
+
+    [window addSubview:overlay];
+
+    // Slide up from bottom
+    [UIView animateWithDuration:0.3
+                          delay:0
+                        options:UIViewAnimationOptionCurveEaseOut
+                     animations:^{
+        overlay.frame = windowBounds;
+    } completion:nil];
+}
+
+- (void)dismissFullScreenOverlay:(id)sender {
+    UIWindow *window = self.view.window;
+    UIView *overlay = [window viewWithTag:8888];
+    if (!overlay) return;
+
+    // Also update the thumbnail selection to match where the user swiped to
+    if (self.fullscreenIndex != self.selectedThumbnailIndex) {
+        UIImageView *oldThumb = self.thumbnailImageViews[(NSUInteger)self.selectedThumbnailIndex];
+        oldThumb.layer.borderWidth = 0.5;
+        oldThumb.layer.borderColor = [[UIColor colorWithWhite:0.85 alpha:1] CGColor];
+
+        UIImageView *newThumb = self.thumbnailImageViews[(NSUInteger)self.fullscreenIndex];
+        newThumb.layer.borderWidth = 2.0;
+        newThumb.layer.borderColor = [[UIColor colorWithRed:0.2 green:0.5 blue:0.9 alpha:1] CGColor];
+
+        self.selectedThumbnailIndex = self.fullscreenIndex;
+
+        // Update main artwork view too
+        NSDictionary *entry = self.thumbnailEntries[(NSUInteger)self.fullscreenIndex];
+        UIImage *img = entry[@"image"];
+        BOOL isSprite = [entry[@"isSprite"] boolValue];
+        if (isSprite) {
+            CGFloat containerSize = self.artworkView.bounds.size.width;
+            self.artworkView.image = [self pixelScaledImage:img toFitSize:containerSize];
+            self.artworkView.contentMode = UIViewContentModeCenter;
+            self.artworkView.layer.magnificationFilter = kCAFilterNearest;
+        } else {
+            self.artworkView.image = img;
+            self.artworkView.contentMode = UIViewContentModeScaleAspectFit;
+            self.artworkView.layer.magnificationFilter = kCAFilterLinear;
+        }
+    }
+
+    CGRect windowBounds = window.bounds;
+    // Slide down off screen
+    [UIView animateWithDuration:0.25
+                          delay:0
+                        options:UIViewAnimationOptionCurveEaseIn
+                     animations:^{
+        overlay.frame = CGRectMake(0, windowBounds.size.height,
+                                   windowBounds.size.width, windowBounds.size.height);
+    } completion:^(BOOL finished) {
+        [overlay removeFromSuperview];
+    }];
+}
+
+- (void)configureFullscreenImageView:(UIImageView *)imageView forIndex:(NSInteger)index {
+    NSDictionary *entry = self.thumbnailEntries[(NSUInteger)index];
+    UIImage *fullImage = entry[@"image"];
+    BOOL isSprite = [entry[@"isSprite"] boolValue];
+
+    if (isSprite) {
+        CGFloat fitDim = MIN(imageView.bounds.size.width, imageView.bounds.size.height);
+        UIImage *scaled = [self pixelScaledImage:fullImage toFitSize:fitDim];
+        imageView.image = scaled;
+        imageView.contentMode = UIViewContentModeCenter;
+        imageView.layer.magnificationFilter = kCAFilterNearest;
+    } else {
+        imageView.image = fullImage;
+        imageView.contentMode = UIViewContentModeScaleAspectFit;
+        imageView.layer.magnificationFilter = kCAFilterLinear;
+    }
+}
+
+- (void)updateFullscreenToolbar:(UIToolbar *)toolbar {
+    NSDictionary *entry = self.thumbnailEntries[(NSUInteger)self.fullscreenIndex];
+    NSString *label = entry[@"label"];
+
+    UILabel *titleLabel = [[UILabel alloc] init];
+    titleLabel.text = label;
+    titleLabel.font = [UIFont boldSystemFontOfSize:17];
+    titleLabel.textColor = [UIColor whiteColor];
+    titleLabel.backgroundColor = [UIColor clearColor];
+    [titleLabel sizeToFit];
 
     UIBarButtonItem *titleItem = [[UIBarButtonItem alloc]
-        initWithTitle:label style:UIBarButtonItemStylePlain target:nil action:nil];
-    titleItem.enabled = NO;
-    // Style the disabled title to appear as white text
-    NSDictionary *titleAttrs = @{
-        UITextAttributeTextColor: [UIColor colorWithWhite:1.0 alpha:0.9],
-        UITextAttributeTextShadowColor: [UIColor clearColor]
-    };
-    [titleItem setTitleTextAttributes:titleAttrs forState:UIControlStateDisabled];
+        initWithCustomView:titleLabel];
 
     UIBarButtonItem *flex = [[UIBarButtonItem alloc]
         initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
@@ -466,43 +574,64 @@
         target:self action:@selector(dismissFullScreenOverlay:)];
 
     toolbar.items = @[titleItem, flex, doneItem];
-    [overlay addSubview:toolbar];
-
-    // Image area below toolbar
-    CGRect imageArea = CGRectMake(0, topInset, windowBounds.size.width,
-                                  windowBounds.size.height - topInset);
-    UIImageView *imageView = [[UIImageView alloc] initWithFrame:imageArea];
-    imageView.backgroundColor = [UIColor whiteColor];
-
-    if (isSprite) {
-        CGFloat fitDim = MIN(imageArea.size.width, imageArea.size.height);
-        UIImage *scaled = [self pixelScaledImage:fullImage toFitSize:fitDim];
-        imageView.image = scaled;
-        imageView.contentMode = UIViewContentModeCenter;
-        imageView.layer.magnificationFilter = kCAFilterNearest;
-    } else {
-        imageView.image = fullImage;
-        imageView.contentMode = UIViewContentModeScaleAspectFit;
-    }
-
-    [overlay addSubview:imageView];
-
-    [window addSubview:overlay];
-
-    [UIView animateWithDuration:0.25 animations:^{
-        overlay.alpha = 1;
-    }];
 }
 
-- (void)dismissFullScreenOverlay:(id)sender {
-    UIWindow *window = self.view.window;
-    UIView *overlay = [window viewWithTag:8888];
+- (void)fullscreenSwipeLeft:(UISwipeGestureRecognizer *)gesture {
+    [self fullscreenNavigate:1];
+}
+
+- (void)fullscreenSwipeRight:(UISwipeGestureRecognizer *)gesture {
+    [self fullscreenNavigate:-1];
+}
+
+- (void)fullscreenNavigate:(NSInteger)direction {
+    NSInteger newIndex = self.fullscreenIndex + direction;
+    if (newIndex < 0 || (NSUInteger)newIndex >= self.thumbnailEntries.count) return;
+
+    UIView *overlay = [self.view.window viewWithTag:8888];
     if (!overlay) return;
-    [UIView animateWithDuration:0.2 animations:^{
-        overlay.alpha = 0;
+
+    UIImageView *imageView = (UIImageView *)[overlay viewWithTag:8890];
+    UIToolbar *toolbar = (UIToolbar *)[overlay viewWithTag:8889];
+    if (!imageView || !toolbar) return;
+
+    self.fullscreenIndex = newIndex;
+
+    // Animate image transition
+    CGFloat slideDistance = overlay.bounds.size.width;
+    CGFloat offsetX = (direction > 0) ? -slideDistance : slideDistance;
+
+    UIImageView *newImageView = [[UIImageView alloc] initWithFrame:imageView.frame];
+    newImageView.backgroundColor = [UIColor whiteColor];
+    newImageView.tag = 0; // temp tag
+    [self configureFullscreenImageView:newImageView forIndex:newIndex];
+
+    // Position new image off-screen in the swipe direction
+    CGRect newStart = newImageView.frame;
+    newStart.origin.x = -offsetX;
+    newImageView.frame = newStart;
+    [overlay addSubview:newImageView];
+
+    [UIView animateWithDuration:0.25
+                          delay:0
+                        options:UIViewAnimationOptionCurveEaseInOut
+                     animations:^{
+        // Slide old image out
+        CGRect oldFrame = imageView.frame;
+        oldFrame.origin.x = offsetX;
+        imageView.frame = oldFrame;
+
+        // Slide new image in
+        CGRect targetFrame = newImageView.frame;
+        targetFrame.origin.x = 0;
+        newImageView.frame = targetFrame;
     } completion:^(BOOL finished) {
-        [overlay removeFromSuperview];
+        [imageView removeFromSuperview];
+        newImageView.tag = 8890;
     }];
+
+    // Update toolbar title
+    [self updateFullscreenToolbar:toolbar];
 }
 
 #pragma mark - Pixel Scaling
