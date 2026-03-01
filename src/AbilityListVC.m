@@ -24,7 +24,6 @@
 @property (nonatomic, strong) NSArray *sectionTitles;
 @property (nonatomic, strong) NSArray *sectionItems;
 @property (nonatomic, copy)   NSString *activeGrouping;
-@property (nonatomic, strong) UISegmentedControl *groupControl;
 @end
 
 @implementation AbilityListVC
@@ -48,47 +47,16 @@
                action:@selector(showFilterPopover:)];
     self.navigationItem.rightBarButtonItem = _filterButton;
 
-    // Compound table header: search bar + segmented control
+    // Search bar as table header
     CGFloat width = self.view.bounds.size.width;
 
-    UIView *headerWrapper = [[UIView alloc] initWithFrame:
-        CGRectMake(0, 0, width, 44 + 36)];
-    headerWrapper.backgroundColor = [UIColor clearColor];
-    headerWrapper.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-
-    // Search bar
     UISearchBar *searchBar = [[UISearchBar alloc]
         initWithFrame:CGRectMake(0, 0, width, 44)];
     searchBar.placeholder = @"Search Abilities";
     searchBar.delegate = self;
     searchBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     searchBar.tintColor = [UIColor colorWithRed:0.25 green:0.55 blue:0.30 alpha:1];
-    [headerWrapper addSubview:searchBar];
-
-    // Segmented control bar
-    UIView *segBar = [[UIView alloc] initWithFrame:
-        CGRectMake(0, 44, width, 36)];
-    segBar.backgroundColor = [UIColor colorWithWhite:0.93 alpha:1];
-    segBar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-
-    _groupControl = [[UISegmentedControl alloc]
-        initWithItems:@[@"All", @"Gen"]];
-    _groupControl.frame = CGRectMake(8, 4, width - 16, 28);
-    _groupControl.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    _groupControl.segmentedControlStyle = UISegmentedControlStyleBar;
-    _groupControl.selectedSegmentIndex = 0;
-    [_groupControl addTarget:self action:@selector(groupingChanged:)
-            forControlEvents:UIControlEventValueChanged];
-    [segBar addSubview:_groupControl];
-
-    UIView *segSep = [[UIView alloc] initWithFrame:
-        CGRectMake(0, 35.5, width, 0.5)];
-    segSep.backgroundColor = [UIColor colorWithWhite:0.80 alpha:1];
-    segSep.autoresizingMask = UIViewAutoresizingFlexibleWidth;
-    [segBar addSubview:segSep];
-
-    [headerWrapper addSubview:segBar];
-    self.tableView.tableHeaderView = headerWrapper;
+    self.tableView.tableHeaderView = searchBar;
 
     self.searchDC = [[UISearchDisplayController alloc]
         initWithSearchBar:searchBar contentsController:self];
@@ -96,13 +64,9 @@
     self.searchDC.searchResultsDataSource = self;
     self.searchDC.searchResultsDelegate = self;
 
-    // Restore saved grouping
-    NSInteger savedIndex = [[NSUserDefaults standardUserDefaults]
-        integerForKey:@"groupBy_abilities"];
-    if (savedIndex > 0 && savedIndex < (NSInteger)_groupControl.numberOfSegments) {
-        _groupControl.selectedSegmentIndex = savedIndex;
-        [self groupingChanged:_groupControl];
-    }
+    // Always group by generation
+    self.activeGrouping = @"generation";
+    [self rebuildSections];
 
     [[NSNotificationCenter defaultCenter]
         addObserver:self selector:@selector(favouritesDidChange:)
@@ -141,26 +105,7 @@
 
 #pragma mark - Grouping
 
-- (void)groupingChanged:(UISegmentedControl *)sender {
-    NSInteger idx = sender.selectedSegmentIndex;
-    [[NSUserDefaults standardUserDefaults] setInteger:idx forKey:@"groupBy_abilities"];
-
-    switch (idx) {
-        case 1: self.activeGrouping = @"generation"; break;
-        default: self.activeGrouping = nil; break;
-    }
-
-    [self rebuildSections];
-    [self.tableView reloadData];
-}
-
 - (void)rebuildSections {
-    if (!_activeGrouping) {
-        self.sectionTitles = nil;
-        self.sectionItems = nil;
-        return;
-    }
-
     NSDictionary *result = [SectionGrouper groupSummaries:_displayedAbilities
                                                     byKey:@"generation"
                                              sectionOrder:[SectionGrouper generationKeys]

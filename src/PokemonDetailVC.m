@@ -427,48 +427,50 @@
 
     UIWindow *window = self.view.window;
     CGRect windowBounds = window.bounds;
-    CGFloat barH = 44;
+    CGFloat statusBarH = 20;
+    CGFloat toolbarH = 44;
+    CGFloat topInset = statusBarH + toolbarH;
 
     UIView *overlay = [[UIView alloc] initWithFrame:windowBounds];
     overlay.backgroundColor = [UIColor whiteColor];
     overlay.alpha = 0;
+    overlay.tag = 8888;
 
-    // Top bar with bottom border
-    UIView *topBar = [[UIView alloc] initWithFrame:
-        CGRectMake(0, 0, windowBounds.size.width, barH)];
-    topBar.backgroundColor = [UIColor colorWithWhite:0.97 alpha:1];
+    // Black status bar background
+    UIView *statusBg = [[UIView alloc] initWithFrame:
+        CGRectMake(0, 0, windowBounds.size.width, statusBarH)];
+    statusBg.backgroundColor = [UIColor blackColor];
+    [overlay addSubview:statusBg];
 
-    UIView *barBorder = [[UIView alloc] initWithFrame:
-        CGRectMake(0, barH - 0.5, windowBounds.size.width, 0.5)];
-    barBorder.backgroundColor = [UIColor colorWithWhite:0.78 alpha:1];
-    [topBar addSubview:barBorder];
+    // iOS-style black toolbar below status bar
+    UIToolbar *toolbar = [[UIToolbar alloc] initWithFrame:
+        CGRectMake(0, statusBarH, windowBounds.size.width, toolbarH)];
+    toolbar.barStyle = UIBarStyleBlack;
 
-    // Title label in bar
-    UILabel *titleLabel = [[UILabel alloc] initWithFrame:
-        CGRectMake(60, 0, windowBounds.size.width - 120, barH)];
-    titleLabel.text = label;
-    titleLabel.font = [UIFont boldSystemFontOfSize:17];
-    titleLabel.textColor = [UIColor darkTextColor];
-    titleLabel.textAlignment = NSTextAlignmentCenter;
-    titleLabel.backgroundColor = [UIColor clearColor];
-    [topBar addSubview:titleLabel];
+    UIBarButtonItem *titleItem = [[UIBarButtonItem alloc]
+        initWithTitle:label style:UIBarButtonItemStylePlain target:nil action:nil];
+    titleItem.enabled = NO;
+    // Style the disabled title to appear as white text
+    NSDictionary *titleAttrs = @{
+        UITextAttributeTextColor: [UIColor colorWithWhite:1.0 alpha:0.9],
+        UITextAttributeTextShadowColor: [UIColor clearColor]
+    };
+    [titleItem setTitleTextAttributes:titleAttrs forState:UIControlStateDisabled];
 
-    // Done button
-    UIButton *doneBtn = [UIButton buttonWithType:UIButtonTypeCustom];
-    doneBtn.frame = CGRectMake(windowBounds.size.width - 70, 0, 60, barH);
-    [doneBtn setTitle:@"Done" forState:UIControlStateNormal];
-    [doneBtn setTitleColor:[UIColor colorWithRed:0.2 green:0.4 blue:0.9 alpha:1]
-        forState:UIControlStateNormal];
-    doneBtn.titleLabel.font = [UIFont boldSystemFontOfSize:17];
-    [doneBtn addTarget:self action:@selector(dismissFullScreenOverlay:)
-        forControlEvents:UIControlEventTouchUpInside];
-    [topBar addSubview:doneBtn];
+    UIBarButtonItem *flex = [[UIBarButtonItem alloc]
+        initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
+        target:nil action:nil];
 
-    [overlay addSubview:topBar];
+    UIBarButtonItem *doneItem = [[UIBarButtonItem alloc]
+        initWithTitle:@"Done" style:UIBarButtonItemStyleDone
+        target:self action:@selector(dismissFullScreenOverlay:)];
 
-    // Image area below bar
-    CGRect imageArea = CGRectMake(0, barH, windowBounds.size.width,
-                                  windowBounds.size.height - barH);
+    toolbar.items = @[titleItem, flex, doneItem];
+    [overlay addSubview:toolbar];
+
+    // Image area below toolbar
+    CGRect imageArea = CGRectMake(0, topInset, windowBounds.size.width,
+                                  windowBounds.size.height - topInset);
     UIImageView *imageView = [[UIImageView alloc] initWithFrame:imageArea];
     imageView.backgroundColor = [UIColor whiteColor];
 
@@ -493,8 +495,9 @@
 }
 
 - (void)dismissFullScreenOverlay:(id)sender {
-    // Walk up from the button to the overlay (button → topBar → overlay)
-    UIView *overlay = [[sender superview] superview];
+    UIWindow *window = self.view.window;
+    UIView *overlay = [window viewWithTag:8888];
+    if (!overlay) return;
     [UIView animateWithDuration:0.2 animations:^{
         overlay.alpha = 0;
     } completion:^(BOOL finished) {

@@ -84,7 +84,7 @@ static NSDictionary *firmnessDisplayNames() {
 
     _groupControl = [[UISegmentedControl alloc]
         initWithItems:@[@"All", @"Type", @"Firmness"]];
-    _groupControl.frame = CGRectMake(8, 4, width - 16, 28);
+    _groupControl.frame = CGRectMake(8, 4, width - 44, 28);
     _groupControl.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     _groupControl.segmentedControlStyle = UISegmentedControlStyleBar;
     _groupControl.selectedSegmentIndex = 0;

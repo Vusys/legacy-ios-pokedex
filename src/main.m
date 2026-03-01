@@ -348,6 +348,7 @@
         UISplitViewController *pokedexSplit = [[UISplitViewController alloc] init];
         pokedexSplit.viewControllers = @[pokedexMasterNav, pokedexDetailNav];
         pokedexSplit.delegate = self;
+        [pokedexSplit setValue:@(448) forKey:@"_masterColumnWidth"];
         pokedexSplit.title = @"Pok\u00e9mon";
         pokedexSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Pok\u00e9mon"
             image:[self pokeballIcon] tag:1];
@@ -374,6 +375,7 @@
         UISplitViewController *movesSplit = [[UISplitViewController alloc] init];
         movesSplit.viewControllers = @[moveMasterNav, moveDetailNav];
         movesSplit.delegate = self;
+        [movesSplit setValue:@(448) forKey:@"_masterColumnWidth"];
         movesSplit.title = @"Moves";
         movesSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Moves"
             image:[self movesIcon] tag:2];
@@ -399,6 +401,7 @@
         UISplitViewController *abilitiesSplit = [[UISplitViewController alloc] init];
         abilitiesSplit.viewControllers = @[abilityMasterNav, abilityDetailNav];
         abilitiesSplit.delegate = self;
+        [abilitiesSplit setValue:@(448) forKey:@"_masterColumnWidth"];
         abilitiesSplit.title = @"Abilities";
         abilitiesSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Abilities"
             image:[self abilitiesIcon] tag:3];
@@ -424,6 +427,7 @@
         UISplitViewController *locationsSplit = [[UISplitViewController alloc] init];
         locationsSplit.viewControllers = @[locationMasterNav, locationDetailNav];
         locationsSplit.delegate = self;
+        [locationsSplit setValue:@(448) forKey:@"_masterColumnWidth"];
         locationsSplit.title = @"Locations";
         locationsSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Locations"
             image:[self locationsIcon] tag:4];
@@ -449,6 +453,7 @@
         UISplitViewController *itemsSplit = [[UISplitViewController alloc] init];
         itemsSplit.viewControllers = @[itemMasterNav, itemDetailNav];
         itemsSplit.delegate = self;
+        [itemsSplit setValue:@(448) forKey:@"_masterColumnWidth"];
         itemsSplit.title = @"Items";
         itemsSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Items"
             image:[self itemsIcon] tag:5];
@@ -474,6 +479,7 @@
         UISplitViewController *berriesSplit = [[UISplitViewController alloc] init];
         berriesSplit.viewControllers = @[berryMasterNav, berryDetailNav];
         berriesSplit.delegate = self;
+        [berriesSplit setValue:@(448) forKey:@"_masterColumnWidth"];
         berriesSplit.title = @"Berries";
         berriesSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Berries"
             image:[self berriesIcon] tag:6];
@@ -499,6 +505,7 @@
         UISplitViewController *naturesSplit = [[UISplitViewController alloc] init];
         naturesSplit.viewControllers = @[natureMasterNav, natureDetailNav];
         naturesSplit.delegate = self;
+        [naturesSplit setValue:@(448) forKey:@"_masterColumnWidth"];
         naturesSplit.title = @"Natures";
         naturesSplit.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Natures"
             image:[self naturesIcon] tag:7];
