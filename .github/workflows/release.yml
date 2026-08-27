@@ -1,0 +1,66 @@
+name: Release
+
+# Tag a commit `vX.Y` (matching src/Info.plist's CFBundleShortVersionString
+# exactly) and push the tag to cut a GitHub Release with the built .ipa
+# attached, e.g.:
+#
+#   git tag v1.5
+#   git push origin v1.5
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v7
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+
+      - name: Restore PokeAPI cache
+        uses: actions/cache@v6
+        with:
+          path: tools/.cache
+          key: pokeapi-cache-${{ github.run_id }}
+          restore-keys: |
+            pokeapi-cache-
+
+      - name: Fetch PokeAPI data
+        run: php tools/fetch.php
+
+      - name: Generate data + sprites
+        run: php tools/process.php
+
+      - uses: ./.github/actions/setup-toolchain
+
+      - name: Build & package
+        id: build
+        run: ./scripts/ci-build.sh
+
+      # Catches the easy mistake of tagging before bumping Info.plist's
+      # version -- otherwise the release's tag and the .ipa's actual
+      # bundle version silently disagree.
+      - name: Check tag matches bundle version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          bundle_version="${{ steps.build.outputs.version }}"
+          if [ "$tag_version" != "$bundle_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME (version '$tag_version') doesn't match src/Info.plist's CFBundleShortVersionString: $bundle_version. Bump it, commit, then re-tag."
+            exit 1
+          fi
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: Pokédex ${{ github.ref_name }}
+          generate_release_notes: true
+          files: ${{ steps.build.outputs.ipa_path }}

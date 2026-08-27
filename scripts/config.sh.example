@@ -1,5 +1,9 @@
 #!/bin/bash
-IPAD_HOST="192.168.1.147"
+# Copy this file to config.sh (gitignored) and fill in your jailbroken
+# device's details. config.sh is only used for the local deploy/sync/build/
+# install scripts that talk to a physical iPad/iPhone over SSH -- CI never
+# reads it (see scripts/ci-build.sh instead).
+IPAD_HOST="192.168.1.XXX"
 IPAD_USER="mobile"
 IPAD_PASS="alpine"
 IPAD_PROJECT="/var/mobile/Pokedex"

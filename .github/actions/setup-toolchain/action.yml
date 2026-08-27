@@ -1,0 +1,102 @@
+name: Setup iOS 6 cross toolchain
+description: >
+  Installs a Linux-hosted clang/ldid toolchain and an iOS 6.1 SDK -- enough
+  to cross-compile the app the same way scripts/build.sh does on-device,
+  without needing a physical jailbroken iPad. Cached across runs.
+
+inputs:
+  toolchain-dir:
+    description: Where to extract the clang/ldid toolchain, relative to the workspace.
+    default: .ci-toolchain
+  sdk-name:
+    description: SDK directory name this toolchain expects.
+    default: iPhoneOS6.1.sdk
+  toolchain-url:
+    description: Download URL for the prebuilt Linux clang/ldid toolchain (L1ghtmann's iOS LLVM fork).
+    default: https://github.com/L1ghtmann/llvm-project/releases/latest/download/iOSToolchain-x86_64.tar.xz
+  sdk-url:
+    description: Download URL for the SDK zip (growtopiajaw/iPhoneOS-SDK release asset).
+    default: https://github.com/growtopiajaw/iPhoneOS-SDK/releases/download/v1.0/iPhoneOS6.1.sdk.zip
+  cache-key-suffix:
+    description: Bump to force a clean re-fetch of the toolchain/SDK.
+    default: v1
+
+outputs:
+  clang:
+    description: Path to the cross clang binary.
+    value: ${{ steps.export.outputs.clang }}
+  ldid:
+    description: Path to the ldid binary.
+    value: ${{ steps.export.outputs.ldid }}
+  sdk:
+    description: Path to the extracted iOS SDK (pass to clang -isysroot).
+    value: ${{ steps.export.outputs.sdk }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install host build dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl unzip zip xz-utils
+
+    # The toolchain tarball + SDK zip are ~320MB combined and never change
+    # for a given SDK/cache-key-suffix, so cache the extracted result.
+    - name: Cache toolchain + SDK
+      id: cache
+      uses: actions/cache@v6
+      with:
+        path: ${{ inputs.toolchain-dir }}
+        key: ios6-toolchain-linux-x86_64-${{ inputs.sdk-name }}-${{ inputs.cache-key-suffix }}
+
+    - name: Download toolchain
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        mkdir -p "${{ inputs.toolchain-dir }}/toolchain"
+        curl -sL "${{ inputs.toolchain-url }}" | tar -xJf - -C "${{ inputs.toolchain-dir }}/toolchain/"
+
+    - name: Download SDK
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        mkdir -p "${{ inputs.toolchain-dir }}/sdks"
+        curl -fL -o /tmp/sdk.zip "${{ inputs.sdk-url }}"
+        unzip -q /tmp/sdk.zip -d "${{ inputs.toolchain-dir }}/sdks"
+        rm -f /tmp/sdk.zip
+        test -d "${{ inputs.toolchain-dir }}/sdks/${{ inputs.sdk-name }}"
+
+    # This Linux port of clang has no libarclite_iphoneos.a (Apple's ARC
+    # back-deploy shim for pre-iOS 5 targets). We build against iOS 6.0,
+    # which natively supports ARC and never actually calls into it, but
+    # the linker still looks for the file and fails if it's flat-out
+    # missing. A stub archive containing one empty object for the target
+    # arch satisfies the linker (it's linked, just never called into).
+    - name: Stub out libarclite
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        ARCLITE_DIR="${{ inputs.toolchain-dir }}/toolchain/linux/iphone/lib/arc"
+        CLANG="${{ inputs.toolchain-dir }}/toolchain/linux/iphone/bin/clang"
+        AR="${{ inputs.toolchain-dir }}/toolchain/linux/iphone/bin/llvm-ar"
+        SDK="${{ inputs.toolchain-dir }}/sdks/${{ inputs.sdk-name }}"
+        mkdir -p "$ARCLITE_DIR"
+        echo "" > /tmp/empty.c
+        "$CLANG" -target armv7-apple-ios6.0 -isysroot "$SDK" -c /tmp/empty.c -o /tmp/empty.o
+        "$AR" rcs "$ARCLITE_DIR/libarclite_iphoneos.a" /tmp/empty.o
+
+    - name: Export toolchain paths
+      id: export
+      shell: bash
+      run: |
+        TOOLCHAIN_DIR="$(readlink -f "${{ inputs.toolchain-dir }}")"
+        BIN="$TOOLCHAIN_DIR/toolchain/linux/iphone/bin"
+        SDK="$TOOLCHAIN_DIR/sdks/${{ inputs.sdk-name }}"
+        echo "CLANG=$BIN/clang" >> "$GITHUB_ENV"
+        echo "LDID=$BIN/ldid" >> "$GITHUB_ENV"
+        echo "SDK=$SDK" >> "$GITHUB_ENV"
+        echo "$BIN" >> "$GITHUB_PATH"
+        echo "clang=$BIN/clang" >> "$GITHUB_OUTPUT"
+        echo "ldid=$BIN/ldid" >> "$GITHUB_OUTPUT"
+        echo "sdk=$SDK" >> "$GITHUB_OUTPUT"

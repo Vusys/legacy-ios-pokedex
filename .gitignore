@@ -2,3 +2,16 @@ tools/.cache/
 .buildnum
 builds/
 screenshots/
+
+# Generated at build time from tools/fetch.php + tools/process.php.
+# Never commit these -- see README for why.
+src/data/
+src/sprites/
+
+# Device-specific local settings; copy from config.sh.example
+scripts/config.sh
+
+# CI build/package scratch (also handy for local ci-build.sh test runs)
+dist/
+.ci-toolchain/
+.ci-payload/

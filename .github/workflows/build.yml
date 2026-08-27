@@ -1,0 +1,54 @@
+name: Build
+
+# CI build: fetches/refreshes PokeAPI data (cached across runs), generates
+# src/data + src/sprites, cross-compiles against a fetched iOS 6.1 SDK (see
+# .github/actions/setup-toolchain), and uploads the resulting .ipa as a
+# build artifact on every push/PR. For tagged releases, see release.yml.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v7
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+
+      # Raw PokeAPI JSON responses (tools/.cache/) are gitignored and never
+      # committed -- see README. fetch.php skips anything already cached,
+      # so restoring this across runs avoids re-hitting PokeAPI (and its
+      # rate limit) for data that hasn't changed.
+      - name: Restore PokeAPI cache
+        uses: actions/cache@v6
+        with:
+          path: tools/.cache
+          key: pokeapi-cache-${{ github.run_id }}
+          restore-keys: |
+            pokeapi-cache-
+
+      - name: Fetch PokeAPI data
+        run: php tools/fetch.php
+
+      - name: Generate data + sprites
+        run: php tools/process.php
+
+      - uses: ./.github/actions/setup-toolchain
+
+      - name: Build & package
+        run: ./scripts/ci-build.sh
+
+      - name: Upload .ipa artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Pokedex-ipa
+          path: dist/*.ipa
+          if-no-files-found: error
