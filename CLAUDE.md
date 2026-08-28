@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 iOS 6 Pokédex app targeting jailbroken iPad 2 and iPhone/iPod Touch (ARMv7). Pure Objective-C with ARC, no package managers or third-party libraries. All data comes from PokeAPI v2, pre-processed into plist files bundled with the app.
 
-Current version: 1.4. See ROADMAP.md for completed phases (1-3, 6, 8-9) and planned work (4, 5, 7).
+Current version: 1.5.1. See ROADMAP.md for completed phases (1-3, 6, 8-9) and planned work (4, 5, 7).
 
 ## Build & Deploy
 
@@ -31,9 +31,12 @@ Frameworks: UIKit, Foundation, CoreGraphics, QuartzCore. Compiler: clang 3.7.1. 
 **Do NOT run the PHP scripts.** Edit `tools/fetch.php` and `tools/process.php` as needed, but prompt the user to execute them.
 
 ```bash
-php tools/fetch.php     # Download PokeAPI data → tools/.cache/ (JSON, with rate limiting)
-php tools/process.php   # Convert cached JSON → src/data/ (plist) + src/sprites/ (PNG)
+php tools/fetch.php            # Download PokeAPI data → tools/.cache/ (JSON, with rate limiting)
+php tools/process.php          # Convert cached JSON → src/data/ (plist) + src/sprites/ (PNG)
+./scripts/optimize-sprites.sh  # Losslessly recompress src/sprites/ with optipng -o7, parallelized across cores
 ```
+
+`optimize-sprites.sh` is not run automatically by `process.php`—run it as a separate step after processing (also wired into CI, see `.github/workflows/build.yml`). It needs `optipng` and GNU `parallel` on PATH.
 
 Data flow: PokeAPI v2 → cached JSON → XML plist files → DataManager singleton → model objects → views.
 
