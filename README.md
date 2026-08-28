@@ -25,8 +25,9 @@ All Pokémon data and sprites come from [PokeAPI](https://pokeapi.co) and are
 `src/data/` and `src/sprites/` are generated, gitignored directories:
 
 ```bash
-php tools/fetch.php     # Download PokeAPI data → tools/.cache/ (JSON, rate-limited)
-php tools/process.php   # Convert cached JSON → src/data/ (plist) + src/sprites/ (PNG)
+php tools/fetch.php          # Download PokeAPI data → tools/.cache/ (JSON, rate-limited)
+php tools/process.php        # Convert cached JSON → src/data/ (plist) + src/sprites/ (PNG)
+./scripts/optimize-sprites.sh  # Losslessly recompress src/sprites/ with optipng -o7 (parallel)
 ```
 
 `fetch.php` caches every response under `tools/.cache/` (also gitignored)
@@ -52,7 +53,8 @@ Linux-hosted clang and a fetched iOS 6.1 SDK (see
 
 ```bash
 php tools/fetch.php && php tools/process.php
-./scripts/ci-build.sh   # needs $CLANG, $LDID, $SDK — see the action above
+./scripts/optimize-sprites.sh   # needs optipng + GNU parallel
+./scripts/ci-build.sh           # needs $CLANG, $LDID, $SDK — see the action above
 ```
 
 Every push builds an `.ipa` as a GitHub Actions artifact. Pushing a tag like

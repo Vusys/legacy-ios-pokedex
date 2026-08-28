@@ -41,6 +41,12 @@ jobs:
       - name: Generate data + sprites
         run: php tools/process.php
 
+      - name: Install optipng
+        run: sudo apt-get update && sudo apt-get install -y optipng
+
+      - name: Optimize sprites
+        run: ./scripts/optimize-sprites.sh
+
       - uses: ./.github/actions/setup-toolchain
 
       - name: Build & package
