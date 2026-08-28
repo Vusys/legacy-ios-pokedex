@@ -34,8 +34,13 @@ BEFORE="$(du -sk "$SPRITES_DIR" | cut -f1)"
 COUNT="$(find "$SPRITES_DIR" -name '*.png' | wc -l)"
 echo "Optimizing $COUNT PNGs in $SPRITES_DIR with optipng -o7 ($JOBS parallel jobs)..."
 
+# optipng's default (non -quiet) output dumps every filter/compression trial
+# it tries at -o7 -- unreadable at thousands of files. -quiet plus one echo
+# per completed job gives real progress without that noise or needing a tty
+# (parallel's --bar/--progress try to write terminal control codes to
+# /dev/tty, which doesn't exist in CI or other non-interactive shells).
 find "$SPRITES_DIR" -name '*.png' -print0 \
-    | parallel -0 -j "$JOBS" optipng -o7 -strip all -quiet {}
+    | parallel -0 -j "$JOBS" 'optipng -o7 -strip all -quiet {} && echo "[{#}/'"$COUNT"'] {}"'
 
 AFTER="$(du -sk "$SPRITES_DIR" | cut -f1)"
 echo "Done. $SPRITES_DIR: $((BEFORE / 1024))MB -> $((AFTER / 1024))MB"
